@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2024 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@
  */
 
 package org.springframework.ai.retry;
+
+import org.jspecify.annotations.Nullable;
 
 /**
  * Root of the hierarchy of Model access exceptions that are considered transient - where
@@ -39,7 +41,7 @@ public class TransientAiException extends RuntimeException {
 	 * @param message the exception message
 	 * @param cause the exception cause
 	 */
-	public TransientAiException(final String message, final Throwable cause) {
+	public TransientAiException(final String message, final @Nullable Throwable cause) {
 		super(message, cause);
 	}
 

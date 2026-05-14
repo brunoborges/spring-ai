@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2024 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,7 +38,6 @@ import org.springframework.core.retry.RetryTemplate;
 import org.springframework.core.retry.Retryable;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.client.ClientHttpResponse;
-import org.springframework.lang.NonNull;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StreamUtils;
 import org.springframework.web.client.ResourceAccessException;
@@ -92,18 +91,17 @@ public class SpringAiRetryAutoConfiguration {
 		return new ResponseErrorHandler() {
 
 			@Override
-			public boolean hasError(@NonNull ClientHttpResponse response) throws IOException {
+			public boolean hasError(ClientHttpResponse response) throws IOException {
 				return response.getStatusCode().isError();
 			}
 
 			@Override
-			public void handleError(@NonNull URI url, @NonNull HttpMethod method, @NonNull ClientHttpResponse response)
-					throws IOException {
+			public void handleError(URI url, HttpMethod method, ClientHttpResponse response) throws IOException {
 				handleError(response);
 			}
 
 			@SuppressWarnings("removal")
-			public void handleError(@NonNull ClientHttpResponse response) throws IOException {
+			public void handleError(ClientHttpResponse response) throws IOException {
 				if (!response.getStatusCode().isError()) {
 					return;
 				}

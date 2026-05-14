@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2024 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -104,7 +105,7 @@ class PgVectorSchemaValidator {
 			// Include the schema name in the query to target the correct table
 			String query = "SELECT column_name, data_type FROM information_schema.columns "
 					+ "WHERE table_schema = ? AND table_name = ?";
-			List<Map<String, Object>> columns = this.jdbcTemplate.queryForList(query,
+			List<Map<String, @Nullable Object>> columns = this.jdbcTemplate.queryForList(query,
 					new Object[] { schemaName, tableName });
 
 			if (columns.isEmpty()) {
@@ -114,7 +115,7 @@ class PgVectorSchemaValidator {
 
 			// Check each column against expected fields
 			List<String> availableColumns = new ArrayList<>();
-			for (Map<String, Object> column : columns) {
+			for (Map<String, @Nullable Object> column : columns) {
 				String columnName = (String) column.get("column_name");
 				availableColumns.add(columnName);
 

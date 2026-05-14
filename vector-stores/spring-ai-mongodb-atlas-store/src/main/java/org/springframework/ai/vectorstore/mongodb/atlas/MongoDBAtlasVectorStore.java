@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import com.mongodb.MongoCommandException;
@@ -124,6 +125,7 @@ import org.springframework.util.Assert;
  * @author Christian Tzolov
  * @author Thomas Vitale
  * @author Ilayaperumal Gopinathan
+ * @author chabinhwang
  * @since 1.0.0
  */
 public class MongoDBAtlasVectorStore extends AbstractObservationVectorStore implements InitializingBean {
@@ -260,9 +262,10 @@ public class MongoDBAtlasVectorStore extends AbstractObservationVectorStore impl
 	public void doAdd(List<Document> documents) {
 		List<float[]> embeddings = this.embeddingModel.embed(documents, EmbeddingOptions.builder().build(),
 				this.batchingStrategy);
-		for (Document document : documents) {
-			MongoDBDocument mdbDocument = new MongoDBDocument(document.getId(), document.getText(),
-					document.getMetadata(), embeddings.get(documents.indexOf(document)));
+		for (int i = 0; i < documents.size(); i++) {
+			Document document = documents.get(i);
+			MongoDBDocument mdbDocument = new MongoDBDocument(document.getId(),
+					Objects.requireNonNullElse(document.getText(), ""), document.getMetadata(), embeddings.get(i));
 			this.mongoTemplate.save(mdbDocument, this.collectionName);
 		}
 	}

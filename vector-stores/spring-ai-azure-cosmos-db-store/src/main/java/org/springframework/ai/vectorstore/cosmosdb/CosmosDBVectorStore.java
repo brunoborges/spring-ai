@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -40,6 +41,7 @@ import com.azure.cosmos.models.CosmosVectorEmbeddingPolicy;
 import com.azure.cosmos.models.CosmosVectorIndexSpec;
 import com.azure.cosmos.models.CosmosVectorIndexType;
 import com.azure.cosmos.models.ExcludedPath;
+import com.azure.cosmos.models.FeedResponse;
 import com.azure.cosmos.models.IncludedPath;
 import com.azure.cosmos.models.IndexingMode;
 import com.azure.cosmos.models.IndexingPolicy;
@@ -50,13 +52,14 @@ import com.azure.cosmos.models.SqlParameter;
 import com.azure.cosmos.models.SqlQuerySpec;
 import com.azure.cosmos.models.ThroughputProperties;
 import com.azure.cosmos.util.CosmosPagedFlux;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.apache.commons.lang3.tuple.ImmutablePair;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.json.JsonMapper;
+import tools.jackson.databind.node.ObjectNode;
 
 import org.springframework.ai.document.Document;
 import org.springframework.ai.embedding.EmbeddingModel;
@@ -67,7 +70,6 @@ import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.observation.AbstractObservationVectorStore;
 import org.springframework.ai.vectorstore.observation.VectorStoreObservationContext;
-import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 
 /**
@@ -76,6 +78,7 @@ import org.springframework.util.Assert;
  * @author Theo van Kraay
  * @author Soby Chacko
  * @author Thomas Vitale
+ * @author chabinhwang
  * @since 1.0.0
  */
 public class CosmosDBVectorStore extends AbstractObservationVectorStore implements AutoCloseable {
@@ -113,8 +116,8 @@ public class CosmosDBVectorStore extends AbstractObservationVectorStore implemen
 		this.cosmosClient = builder.cosmosClient;
 		this.containerName = builder.containerName;
 		this.databaseName = builder.databaseName;
-		this.partitionKeyPath = builder.partitionKeyPath;
-		this.vectorStoreThroughput = builder.vectorStoreThroughput;
+		this.partitionKeyPath = Objects.requireNonNullElse(builder.partitionKeyPath, "/id");
+		this.vectorStoreThroughput = builder.vectorStoreThroughput == 0 ? 400 : builder.vectorStoreThroughput;
 		this.vectorDimensions = builder.vectorDimensions;
 		this.metadataFieldsList = builder.metadataFieldsList;
 
@@ -136,15 +139,6 @@ public class CosmosDBVectorStore extends AbstractObservationVectorStore implemen
 	}
 
 	private void initializeContainer() {
-
-		// Set defaults if not provided
-		if (this.vectorStoreThroughput == 0) {
-			this.vectorStoreThroughput = 400;
-		}
-		if (this.partitionKeyPath == null) {
-			this.partitionKeyPath = "/id";
-		}
-
 		// handle hierarchical partition key
 		PartitionKeyDefinition subPartitionKeyDefinition = new PartitionKeyDefinition();
 		List<String> pathsFromCommaSeparatedList = new ArrayList<>();
@@ -200,17 +194,15 @@ public class CosmosDBVectorStore extends AbstractObservationVectorStore implemen
 	}
 
 	private JsonNode mapCosmosDocument(Document document, float[] queryEmbedding) {
-		ObjectMapper objectMapper = new ObjectMapper();
-
 		String id = document.getId();
 		String content = document.getText();
 
 		// Convert metadata and embedding directly to JsonNode
-		JsonNode metadataNode = objectMapper.valueToTree(document.getMetadata());
-		JsonNode embeddingNode = objectMapper.valueToTree(queryEmbedding);
+		JsonNode metadataNode = JsonMapper.shared().valueToTree(document.getMetadata());
+		JsonNode embeddingNode = JsonMapper.shared().valueToTree(queryEmbedding);
 
 		// Create an ObjectNode specifically
-		ObjectNode objectNode = objectMapper.createObjectNode();
+		ObjectNode objectNode = JsonMapper.shared().createObjectNode();
 
 		// Use put for simple values and set for JsonNode values
 		objectNode.put("id", id);
@@ -230,32 +222,37 @@ public class CosmosDBVectorStore extends AbstractObservationVectorStore implemen
 
 		// Create a list to hold both the CosmosItemOperation and the corresponding
 		// document ID
-		List<ImmutablePair<String, CosmosItemOperation>> itemOperationsWithIds = documents.stream().map(doc -> {
-			String partitionKeyValue;
+		List<ImmutablePair<String, CosmosItemOperation>> itemOperationsWithIds = IntStream.range(0, documents.size())
+			.mapToObj(i -> {
+				Document doc = documents.get(i);
+				String partitionKeyValue;
 
-			if ("/id".equals(this.partitionKeyPath)) {
-				partitionKeyValue = doc.getId();
-			}
-			else if (this.partitionKeyPath.startsWith("/metadata/")) {
-				// Extract the key, e.g. "/metadata/country" -> "country"
-				String metadataKey = this.partitionKeyPath.substring("/metadata/".length());
-				Object value = doc.getMetadata() != null ? doc.getMetadata().get(metadataKey) : null;
-				if (value == null) {
-					throw new IllegalArgumentException(
-							"Partition key '" + metadataKey + "' not found in document metadata.");
+				if ("/id".equals(this.partitionKeyPath)) {
+					partitionKeyValue = doc.getId();
 				}
-				partitionKeyValue = value.toString();
-			}
-			else {
-				throw new IllegalArgumentException("Unsupported partition key path: " + this.partitionKeyPath);
-			}
+				else if (this.partitionKeyPath.startsWith("/metadata/")) {
+					// Extract the key, e.g. "/metadata/country" -> "country"
+					String metadataKey = this.partitionKeyPath.substring("/metadata/".length());
+					Object value = doc.getMetadata() != null ? doc.getMetadata().get(metadataKey) : null;
+					if (value == null) {
+						throw new IllegalArgumentException(
+								"Partition key '" + metadataKey + "' not found in document metadata.");
+					}
+					partitionKeyValue = value.toString();
+				}
+				else {
+					throw new IllegalArgumentException("Unsupported partition key path: " + this.partitionKeyPath);
+				}
 
-			CosmosItemOperation operation = CosmosBulkOperations.getCreateItemOperation(
-					mapCosmosDocument(doc, embeddings.get(documents.indexOf(doc))),
-					new PartitionKey(partitionKeyValue)); // Pair the document ID
-			// with the operation
-			return new ImmutablePair<>(doc.getId(), operation);
-		}).toList();
+				CosmosItemOperation operation = CosmosBulkOperations.getCreateItemOperation(
+						mapCosmosDocument(doc, embeddings.get(i)), new PartitionKey(partitionKeyValue)); // Pair
+																											// the
+																											// document
+																											// ID
+				// with the operation
+				return new ImmutablePair<>(doc.getId(), operation);
+			})
+			.toList();
 
 		try {
 			// Extract just the CosmosItemOperations from the pairs
@@ -316,12 +313,17 @@ public class CosmosDBVectorStore extends AbstractObservationVectorStore implemen
 					String metadataKey = this.partitionKeyPath.substring("/metadata/".length());
 
 					// Run a reactive query to fetch the document by ID
-					String query = String.format("SELECT * FROM c WHERE c.id = '%s'", id);
-					CosmosPagedFlux<JsonNode> queryFlux = this.container.queryItems(query,
+					SqlQuerySpec querySpec = new SqlQuerySpec("SELECT * FROM c WHERE c.id = @id",
+							List.of(new SqlParameter("@id", id)));
+					CosmosPagedFlux<JsonNode> queryFlux = this.container.queryItems(querySpec,
 							new CosmosQueryRequestOptions(), JsonNode.class);
 
 					// Block to retrieve the first page synchronously
-					List<JsonNode> documents = queryFlux.byPage(1).blockFirst().getResults();
+					FeedResponse<JsonNode> jsonNodeFeedResponse = queryFlux.byPage(1).blockFirst();
+					if (jsonNodeFeedResponse == null) {
+						throw new IllegalArgumentException("No document found for id: " + id);
+					}
+					List<JsonNode> documents = jsonNodeFeedResponse.getResults();
 
 					if (documents == null || documents.isEmpty()) {
 						throw new IllegalArgumentException("No document found for id: " + id);
@@ -416,16 +418,19 @@ public class CosmosDBVectorStore extends AbstractObservationVectorStore implemen
 				.flatMap(page -> Flux.fromIterable(page.getResults()))
 				.collectList()
 				.block();
+			if (documents == null) {
+				documents = new ArrayList<>();
+			}
 
 			// Collect metadata fields from the documents
 			Map<String, Object> docFields = new HashMap<>();
 			for (var doc : documents) {
 				JsonNode metadata = doc.get("metadata");
-				metadata.fieldNames().forEachRemaining(field -> {
-					JsonNode value = metadata.get(field);
+				metadata.propertyNames().forEach(property -> {
+					JsonNode value = metadata.get(property);
 					Object parsedValue = value.isTextual() ? value.asText() : value.isNumber() ? value.numberValue()
 							: value.isBoolean() ? value.booleanValue() : value.toString();
-					docFields.put(field, parsedValue);
+					docFields.put(property, parsedValue);
 				});
 			}
 
@@ -471,14 +476,11 @@ public class CosmosDBVectorStore extends AbstractObservationVectorStore implemen
 
 		private final CosmosAsyncClient cosmosClient;
 
-		@Nullable
-		private String containerName;
+		private @Nullable String containerName;
 
-		@Nullable
-		private String databaseName;
+		private @Nullable String databaseName;
 
-		@Nullable
-		private String partitionKeyPath;
+		private @Nullable String partitionKeyPath;
 
 		private int vectorStoreThroughput = 400;
 

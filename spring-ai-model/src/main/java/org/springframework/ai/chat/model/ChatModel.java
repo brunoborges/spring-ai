@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2024 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.model.Model;
+import org.springframework.ai.model.tool.ToolCallingChatOptions;
 
 public interface ChatModel extends Model<Prompt, ChatResponse>, StreamingChatModel {
 
@@ -50,6 +51,24 @@ public interface ChatModel extends Model<Prompt, ChatResponse>, StreamingChatMod
 
 	default Flux<ChatResponse> stream(Prompt prompt) {
 		throw new UnsupportedOperationException("streaming is not supported");
+	}
+
+	default Prompt buildRequestPrompt(Prompt prompt) {
+		var chatOptionsBuilder = getDefaultOptions().mutate();
+		var chatOptions = prompt.getOptions();
+
+		if (chatOptions != null) {
+			chatOptionsBuilder.combineWith(chatOptions.mutate());
+		}
+
+		chatOptions = chatOptionsBuilder.build();
+
+		if (chatOptions instanceof ToolCallingChatOptions toolCallingChatOptions) {
+			ToolCallingChatOptions.validateToolCallbacks(toolCallingChatOptions.getToolCallbacks());
+		}
+
+		return new Prompt(prompt.getInstructions(), chatOptions);
+
 	}
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2024 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.filter.Filter.Key;
 import org.springframework.ai.vectorstore.filter.converter.AbstractFilterExpressionConverter;
+import org.springframework.util.Assert;
 
 import static org.springframework.ai.vectorstore.filter.Filter.ExpressionType.AND;
 import static org.springframework.ai.vectorstore.filter.Filter.ExpressionType.OR;
@@ -78,6 +79,7 @@ class CosmosDBFilterExpressionConverter extends AbstractFilterExpressionConverte
 	}
 
 	private void doCompoundExpressionType(Filter.Expression expression, StringBuilder context) {
+		Assert.state(expression.right() != null, "unexpected null right expression");
 		context.append(" (");
 		this.convertOperand(expression.left(), context);
 		context.append(getOperationSymbol(expression));
@@ -96,6 +98,7 @@ class CosmosDBFilterExpressionConverter extends AbstractFilterExpressionConverte
 	}
 
 	private void doSingleExpressionType(Filter.Expression expression, StringBuilder context) {
+		Assert.state(expression.right() != null, "unexpected null right expression");
 		this.convertOperand(expression.left(), context);
 		context.append(getOperationSymbol(expression));
 		context.append(" (");
@@ -125,6 +128,11 @@ class CosmosDBFilterExpressionConverter extends AbstractFilterExpressionConverte
 			case NIN -> " !IN ";
 			default -> throw new RuntimeException("Not supported expression type:" + exp.type());
 		};
+	}
+
+	@Override
+	protected void doSingleValue(Object value, StringBuilder context) {
+		emitJsonValue(value, context);
 	}
 
 }

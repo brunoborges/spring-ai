@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -141,6 +142,7 @@ import org.springframework.util.StringUtils;
  * @author Soby Chacko
  * @author Thomas Vitale
  * @author Ilayaperumal Gopinathan
+ * @author chabinhwang
  * @see org.springframework.ai.vectorstore.VectorStore
  * @see io.milvus.client.MilvusServiceClient
  */
@@ -245,15 +247,16 @@ public class MilvusVectorStore extends AbstractObservationVectorStore implements
 		List<float[]> embeddings = this.embeddingModel.embed(documents, EmbeddingOptions.builder().build(),
 				this.batchingStrategy);
 
-		for (Document document : documents) {
+		for (int i = 0; i < documents.size(); i++) {
+			Document document = documents.get(i);
 			docIdArray.add(document.getId());
 			// Use a (future) DocumentTextLayoutFormatter instance to extract
 			// the content used to compute the embeddings
-			contentArray.add(document.getText());
+			contentArray.add(Objects.requireNonNullElse(document.getText(), ""));
 			Gson gson = new Gson();
 			String jsonString = gson.toJson(document.getMetadata());
 			metadataArray.add(gson.fromJson(jsonString, JsonObject.class));
-			embeddingArray.add(EmbeddingUtils.toList(embeddings.get(documents.indexOf(document))));
+			embeddingArray.add(EmbeddingUtils.toList(embeddings.get(i)));
 		}
 
 		List<InsertParam.Field> fields = new ArrayList<>();
@@ -281,8 +284,14 @@ public class MilvusVectorStore extends AbstractObservationVectorStore implements
 	public void doDelete(List<String> idList) {
 		Assert.notNull(idList, "Document id list must not be null");
 
+		// Ids are user-supplied strings that get inlined into a Milvus filter
+		// expression. Delegate escaping to the same Jackson-based JSON serialization
+		// used by MilvusFilterExpressionConverter so quotes, backslashes and control
+		// chars cannot break out of the string literal and inject filter syntax.
 		String deleteExpression = String.format("%s in [%s]", this.idFieldName,
-				idList.stream().map(id -> "'" + id + "'").collect(Collectors.joining(",")));
+				idList.stream()
+					.map(MilvusFilterExpressionConverter::toFilterExpressionLiteral)
+					.collect(Collectors.joining(",")));
 
 		R<MutationResult> status = this.milvusClient.delete(DeleteParam.newBuilder()
 			.withDatabaseName(this.databaseName)
@@ -650,7 +659,7 @@ public class MilvusVectorStore extends AbstractObservationVectorStore implements
 		 * COSINE
 		 */
 		public Builder metricType(MetricType metricType) {
-			Assert.notNull(metricType, "Collection Name must not be empty");
+			Assert.notNull(metricType, "metricType must not be null");
 			Assert.isTrue(metricType == MetricType.IP || metricType == MetricType.L2 || metricType == MetricType.COSINE,
 					"Only the text metric types IP and L2 are supported");
 			this.metricType = metricType;

@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2024 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,6 +36,13 @@ class TextLine {
 	TextLine(int lineLength) {
 		if (lineLength < 0) {
 			throw new IllegalArgumentException("Line length cannot be negative");
+		}
+		else if (lineLength > 14_400) {
+			// Cap to a reasonable limit to prevent attack via excessive char allocation
+			// below.
+			// 14_400 pdf units is the recommendation for the max dimension of a page by
+			// ISO 32000
+			throw new IllegalArgumentException("Unreasonable lineLength of %d provided".formatted(lineLength));
 		}
 		this.lineLength = lineLength / ForkPDFLayoutTextStripper.OUTPUT_SPACE_CHARACTER_WIDTH_IN_PT;
 		this.line = new char[this.lineLength];

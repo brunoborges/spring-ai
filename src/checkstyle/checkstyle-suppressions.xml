@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!--
-  ~ Copyright 2023-2024 the original author or authors.
+  ~ Copyright 2023-present the original author or authors.
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
   ~ you may not use this file except in compliance with the License.
@@ -27,7 +27,6 @@
 
 	<suppress files=".*BeanOutputConverterTest\.java$" checks="RegexpSinglelineJava"/>
 	<suppress  files="BaseOllamaIT.java" checks="HideUtilityClassConstructor"/>
-	<suppress  files="BaseOCIGenAITest.java" checks="HideUtilityClassConstructor"/>
 	<suppress  files="OpenAiApiBuilderTests.java" checks="RegexpSinglelineJava"/>
 	<suppress  files="AnthropicApiBuilderTests.java" checks="RegexpSinglelineJava"/>
 	<suppress  files="OpenAiChatModelResponseFormatIT.java" checks="RegexpSinglelineJava"/>
@@ -52,7 +51,6 @@
 	<suppress files="CouchbaseSearchVectorStore.java" checks="FinalClass"/>
 	<suppress files="GemFireVectorStore.java" checks="FinalClass"/>
 	<suppress files="MilvusVectorStore.java" checks="FinalClass"/>
-	<suppress files="HanaCloudVectorStore.java" checks="FinalClass"/>
 	<suppress files="MongoDBAtlasVectorStore.java" checks="FinalClass"/>
 	<suppress files="Neo4jVectorStore.java" checks="FinalClass"/>
 	<suppress files="OpenSearchVectorStore.java" checks="FinalClass"/>
@@ -67,21 +65,7 @@
 	<suppress files="ToolInputSchemaAugmenterTest.java" checks="[a-zA-Z0-9]*"/>
 
 	<suppress files="[\\/]src[\\/]test[\\/]java[\\/]" id="bannedNullabilityImports" />
-	<!-- This list will gradually shrink as we migrate to JSpecify -->
-	<suppress files="advisors" id="bannedNullabilityImports" />
-	<suppress files="auto-configurations" id="bannedNullabilityImports" />
-	<suppress files="document-readers" id="bannedNullabilityImports" />
-	<suppress files="mcp" id="bannedNullabilityImports" />
-	<suppress files="memory" id="bannedNullabilityImports" />
-	<suppress files="models" id="bannedNullabilityImports" />
 	<suppress files="spring-ai-integration-tests" id="bannedNullabilityImports" />
-	<suppress files="spring-ai-rag" id="bannedNullabilityImports" />
-	<suppress files="spring-ai-retry" id="bannedNullabilityImports" />
-	<suppress files="spring-ai-spring-boot-docker-compose" id="bannedNullabilityImports" />
-	<suppress files="spring-ai-spring-boot-starters" id="bannedNullabilityImports" />
-	<suppress files="spring-ai-spring-boot-testcontainers" id="bannedNullabilityImports" />
-	<suppress files="spring-ai-spring-cloud-bindings" id="bannedNullabilityImports" />
-	<suppress files="spring-ai-test" id="bannedNullabilityImports" />
-	<suppress files="vector-stores" id="bannedNullabilityImports" />
 
+	<suppress files="spring-ai-integration-tests" checks="JavadocPackage" />
 </suppressions>

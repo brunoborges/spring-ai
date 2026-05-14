@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,19 +50,9 @@ public interface ToolCallingChatOptions extends ChatOptions {
 	List<ToolCallback> getToolCallbacks();
 
 	/**
-	 * Set the ToolCallbacks to be registered with the ChatModel.
-	 */
-	void setToolCallbacks(List<ToolCallback> toolCallbacks);
-
-	/**
 	 * Names of the tools to register with the ChatModel.
 	 */
 	Set<String> getToolNames();
-
-	/**
-	 * Set the names of the tools to register with the ChatModel.
-	 */
-	void setToolNames(Set<String> toolNames);
 
 	/**
 	 * Whether the {@link ChatModel} is responsible for executing the tools requested by
@@ -71,28 +61,16 @@ public interface ToolCallingChatOptions extends ChatOptions {
 	@Nullable Boolean getInternalToolExecutionEnabled();
 
 	/**
-	 * Set whether the {@link ChatModel} is responsible for executing the tools requested
-	 * by the model or if the tools should be executed directly by the caller.
-	 */
-	void setInternalToolExecutionEnabled(@Nullable Boolean internalToolExecutionEnabled);
-
-	/**
 	 * Get the configured tool context.
 	 * @return the tool context map.
 	 */
 	Map<String, Object> getToolContext();
 
 	/**
-	 * Set the tool context values as map.
-	 * @param toolContext as map
-	 */
-	void setToolContext(Map<String, Object> toolContext);
-
-	/**
 	 * A builder to create a new {@link ToolCallingChatOptions} instance.
 	 */
-	static Builder builder() {
-		return new DefaultToolCallingChatOptions.Builder();
+	static ToolCallingChatOptions.Builder<?> builder() {
+		return new DefaultToolCallingChatOptions.Builder<>();
 	}
 
 	static boolean isInternalToolExecutionEnabled(ChatOptions chatOptions) {
@@ -150,40 +128,40 @@ public interface ToolCallingChatOptions extends ChatOptions {
 	/**
 	 * A builder to create a {@link ToolCallingChatOptions} instance.
 	 */
-	interface Builder extends ChatOptions.Builder {
+	interface Builder<B extends Builder<B>> extends ChatOptions.Builder<B> {
 
 		/**
 		 * ToolCallbacks to be registered with the ChatModel.
 		 */
-		Builder toolCallbacks(List<ToolCallback> toolCallbacks);
+		B toolCallbacks(@Nullable List<ToolCallback> toolCallbacks);
 
 		/**
 		 * ToolCallbacks to be registered with the ChatModel.
 		 */
-		Builder toolCallbacks(ToolCallback... toolCallbacks);
+		B toolCallbacks(ToolCallback... toolCallbacks);
 
 		/**
 		 * Names of the tools to register with the ChatModel.
 		 */
-		Builder toolNames(Set<String> toolNames);
+		B toolNames(@Nullable Set<String> toolNames);
 
 		/**
 		 * Names of the tools to register with the ChatModel.
 		 */
-		Builder toolNames(String... toolNames);
+		B toolNames(String... toolNames);
 
 		/**
 		 * Whether the {@link ChatModel} is responsible for executing the tools requested
 		 * by the model or if the tools should be executed directly by the caller.
 		 */
-		Builder internalToolExecutionEnabled(@Nullable Boolean internalToolExecutionEnabled);
+		B internalToolExecutionEnabled(@Nullable Boolean internalToolExecutionEnabled);
 
 		/**
 		 * Add a {@link Map} of context values into tool context.
 		 * @param context the map representing the tool context.
 		 * @return the {@link ToolCallingChatOptions} Builder.
 		 */
-		Builder toolContext(Map<String, Object> context);
+		B toolContext(@Nullable Map<String, Object> context);
 
 		/**
 		 * Add a specific key/value pair to the tool context.
@@ -191,33 +169,33 @@ public interface ToolCallingChatOptions extends ChatOptions {
 		 * @param value the corresponding value.
 		 * @return the {@link ToolCallingChatOptions} Builder.
 		 */
-		Builder toolContext(String key, Object value);
+		B toolContext(String key, Object value);
 
 		// ChatOptions.Builder methods
 
 		@Override
-		Builder model(@Nullable String model);
+		B model(@Nullable String model);
 
 		@Override
-		Builder frequencyPenalty(@Nullable Double frequencyPenalty);
+		B frequencyPenalty(@Nullable Double frequencyPenalty);
 
 		@Override
-		Builder maxTokens(@Nullable Integer maxTokens);
+		B maxTokens(@Nullable Integer maxTokens);
 
 		@Override
-		Builder presencePenalty(@Nullable Double presencePenalty);
+		B presencePenalty(@Nullable Double presencePenalty);
 
 		@Override
-		Builder stopSequences(@Nullable List<String> stopSequences);
+		B stopSequences(@Nullable List<String> stopSequences);
 
 		@Override
-		Builder temperature(@Nullable Double temperature);
+		B temperature(@Nullable Double temperature);
 
 		@Override
-		Builder topK(@Nullable Integer topK);
+		B topK(@Nullable Integer topK);
 
 		@Override
-		Builder topP(@Nullable Double topP);
+		B topP(@Nullable Double topP);
 
 		@Override
 		ToolCallingChatOptions build();

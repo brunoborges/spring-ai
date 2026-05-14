@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import org.jspecify.annotations.Nullable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -63,6 +64,7 @@ import org.springframework.web.reactive.function.client.WebClient;
  * @author Thomas Vitale
  * @author Jason Smith
  * @author Nicolas Krier
+ * @author Sebastien Deleuze
  * @since 1.0.0
  */
 public class MistralAiApi {
@@ -131,7 +133,7 @@ public class MistralAiApi {
 
 		// The input must not an empty string, and any array must be 1024 dimensions or
 		// less.
-		if (embeddingRequest.input() instanceof List list) {
+		if (embeddingRequest.input() instanceof List<?> list) {
 			Assert.isTrue(!CollectionUtils.isEmpty(list), "The input list can not be empty.");
 			Assert.isTrue(list.size() <= 1024, "The list must be 1024 dimensions or less");
 			Assert.isTrue(
@@ -157,7 +159,7 @@ public class MistralAiApi {
 	public ResponseEntity<ChatCompletion> chatCompletionEntity(ChatCompletionRequest chatRequest) {
 
 		Assert.notNull(chatRequest, "The request body can not be null.");
-		Assert.isTrue(!chatRequest.stream(), "Request must set the stream property to false.");
+		Assert.isTrue(Boolean.FALSE.equals(chatRequest.stream()), "Request must set the stream property to false.");
 
 		return this.restClient.post()
 			.uri("/v1/chat/completions")
@@ -175,7 +177,7 @@ public class MistralAiApi {
 	public Flux<ChatCompletionChunk> chatCompletionStream(ChatCompletionRequest chatRequest) {
 
 		Assert.notNull(chatRequest, "The request body can not be null.");
-		Assert.isTrue(chatRequest.stream(), "Request must set the stream property to true.");
+		Assert.isTrue(Boolean.TRUE.equals(chatRequest.stream()), "Request must set the stream property to true.");
 
 		AtomicBoolean isInsideTool = new AtomicBoolean(false);
 
@@ -201,9 +203,7 @@ public class MistralAiApi {
 				return !isInsideTool.get();
 			})
 			.concatMapIterable(window -> {
-				Mono<ChatCompletionChunk> mono1 = window.reduce(
-						new ChatCompletionChunk(null, null, null, null, null, null),
-						(previous, current) -> this.chunkMerger.merge(previous, current));
+				Mono<ChatCompletionChunk> mono1 = window.reduce(this.chunkMerger::merge);
 				return List.of(mono1);
 			})
 			.flatMap(mono -> mono);
@@ -248,9 +248,7 @@ public class MistralAiApi {
 	/**
 	 * List of well-known Mistral chat models.
 	 *
-	 * @see <a href=
-	 * "https://docs.mistral.ai/getting-started/models/models_overview/">Mistral AI Models
-	 * Overview</a>
+	 * @see <a href="https://docs.mistral.ai/getting-started/models">Mistral AI Models</a>
 	 */
 	public enum ChatModel implements ChatModelDescription {
 
@@ -259,15 +257,17 @@ public class MistralAiApi {
 		MAGISTRAL_MEDIUM("magistral-medium-latest"),
 		MISTRAL_MEDIUM("mistral-medium-latest"),
 		CODESTRAL("codestral-latest"),
-		LARGE("mistral-large-latest"),
+		DEVSTRAL_MEDIUM("devstral-medium-latest"),
+		MISTRAL_LARGE("mistral-large-latest"),
+		@Deprecated(forRemoval = true) // Retirement planed the 31st of May 2026
 		PIXTRAL_LARGE("pixtral-large-latest"),
-		MINISTRAL_3B_LATEST("ministral-3b-latest"),
-		MINISTRAL_8B_LATEST("ministral-8b-latest"),
 		// Free Models
+		MINISTRAL_3B("ministral-3b-latest"),
+		MINISTRAL_8B("ministral-8b-latest"),
+		MINISTRAL_14B("ministral-14b-latest"),
 		MAGISTRAL_SMALL("magistral-small-latest"),
 		DEVSTRAL_SMALL("devstral-small-latest"),
-		SMALL("mistral-small-latest"),
-		PIXTRAL("pixtral-12b-2409"),
+		MISTRAL_SMALL("mistral-small-latest"),
 		// Free Models - Research
 		OPEN_MISTRAL_NEMO("open-mistral-nemo");
 		// @formatter:on
@@ -292,9 +292,7 @@ public class MistralAiApi {
 	/**
 	 * List of well-known Mistral embedding models.
 	 *
-	 * @see <a href=
-	 * "https://docs.mistral.ai/getting-started/models/models_overview/">Mistral AI Models
-	 * Overview</a>
+	 * @see <a href="https://docs.mistral.ai/getting-started/models">Mistral AI Models</a>
 	 */
 	public enum EmbeddingModel {
 
@@ -340,6 +338,7 @@ public class MistralAiApi {
 
 		// The function definition.
 		@JsonProperty("function")
+		@SuppressWarnings("NullAway.Init")
 		Function function;
 
 		public FunctionTool() {
@@ -394,16 +393,19 @@ public class MistralAiApi {
 		public static class Function {
 
 			@JsonProperty("description")
+			@SuppressWarnings("NullAway.Init")
 			private String description;
 
 			@JsonProperty("name")
+			@SuppressWarnings("NullAway.Init")
 			private String name;
 
 			@JsonProperty("parameters")
+			@SuppressWarnings("NullAway.Init")
 			private Map<String, Object> parameters;
 
 			@JsonIgnore
-			private String jsonSchema;
+			private @Nullable String jsonSchema;
 
 			private Function() {
 
@@ -459,11 +461,11 @@ public class MistralAiApi {
 				this.parameters = parameters;
 			}
 
-			public String getJsonSchema() {
+			public @Nullable String getJsonSchema() {
 				return this.jsonSchema;
 			}
 
-			public void setJsonSchema(String jsonSchema) {
+			public void setJsonSchema(@Nullable String jsonSchema) {
 				this.jsonSchema = jsonSchema;
 				if (jsonSchema != null) {
 					this.parameters = ModelOptionsUtils.jsonToMap(jsonSchema);
@@ -630,6 +632,17 @@ public class MistralAiApi {
 	 * @param maxTokens The maximum number of tokens to generate in the completion. The
 	 * token count of your prompt plus max_tokens cannot exceed the model's context
 	 * length.
+	 * @param n Number of completions to return for each request, input tokens are only
+	 * billed once. Minimum is 1.
+	 * @param presencePenalty The presence_penalty determines how much the model penalizes
+	 * the repetition of words or phrases. A higher presence penalty encourages the model
+	 * to use a wider variety of words and phrases, making the output more diverse and
+	 * creative. Supported range is between -2.0 and 2.0.
+	 * @param frequencyPenalty The frequency_penalty penalizes the repetition of words
+	 * based on their frequency in the generated text. A higher frequency penalty
+	 * discourages the model from repeating words that have already appeared frequently in
+	 * the output, promoting diversity and reducing repetition. Supported range is between
+	 * -2.0 and 2.0.
 	 * @param stream Whether to stream back partial progress. If set, tokens will be sent
 	 * as data-only server-sent events as they become available, with the stream
 	 * terminated by a data: [DONE] message. Otherwise, the server will hold the request
@@ -648,18 +661,21 @@ public class MistralAiApi {
 	@JsonInclude(Include.NON_NULL)
 	public record ChatCompletionRequest(
 	// @formatter:off
-			@JsonProperty("model") String model,
+			@JsonProperty("model") @Nullable String model,
 			@JsonProperty("messages") List<ChatCompletionMessage> messages,
-			@JsonProperty("tools") List<FunctionTool> tools,
-			@JsonProperty("tool_choice") ToolChoice toolChoice,
-			@JsonProperty("temperature") Double temperature,
-			@JsonProperty("top_p") Double topP,
-			@JsonProperty("max_tokens") Integer maxTokens,
-			@JsonProperty("stream") Boolean stream,
-			@JsonProperty("safe_prompt") Boolean safePrompt,
-			@JsonProperty("stop") List<String> stop,
-			@JsonProperty("random_seed") Integer randomSeed,
-			@JsonProperty("response_format") ResponseFormat responseFormat) {
+			@JsonProperty("tools") @Nullable List<FunctionTool> tools,
+			@JsonProperty("tool_choice") @Nullable ToolChoice toolChoice,
+			@JsonProperty("temperature") @Nullable Double temperature,
+			@JsonProperty("top_p") @Nullable Double topP,
+			@JsonProperty("max_tokens") @Nullable Integer maxTokens,
+			@JsonProperty("n") @Nullable Integer n,
+			@JsonProperty("presence_penalty") @Nullable Double presencePenalty,
+			@JsonProperty("frequency_penalty") @Nullable Double frequencyPenalty,
+			@JsonProperty("stream") @Nullable Boolean stream,
+			@JsonProperty("safe_prompt") @Nullable Boolean safePrompt,
+			@JsonProperty("stop") @Nullable List<String> stop,
+			@JsonProperty("random_seed") @Nullable Integer randomSeed,
+			@JsonProperty("response_format") @Nullable ResponseFormat responseFormat) {
 		 // @formatter:on
 
 		/**
@@ -670,7 +686,7 @@ public class MistralAiApi {
 		 * @param model ID of the model to use.
 		 */
 		public ChatCompletionRequest(List<ChatCompletionMessage> messages, String model) {
-			this(model, messages, null, null, 0.7, 1.0, null, false, false, null, null, null);
+			this(model, messages, null, null, 0.7, 1.0, null, null, null, null, false, false, null, null, null);
 		}
 
 		/**
@@ -685,7 +701,8 @@ public class MistralAiApi {
 		 */
 		public ChatCompletionRequest(List<ChatCompletionMessage> messages, String model, Double temperature,
 				boolean stream) {
-			this(model, messages, null, null, temperature, 1.0, null, stream, false, null, null, null);
+			this(model, messages, null, null, temperature, 1.0, null, null, null, null, stream, false, null, null,
+					null);
 		}
 
 		/**
@@ -698,7 +715,7 @@ public class MistralAiApi {
 		 *
 		 */
 		public ChatCompletionRequest(List<ChatCompletionMessage> messages, String model, Double temperature) {
-			this(model, messages, null, null, temperature, 1.0, null, false, false, null, null, null);
+			this(model, messages, null, null, temperature, 1.0, null, null, null, null, false, false, null, null, null);
 		}
 
 		/**
@@ -713,7 +730,7 @@ public class MistralAiApi {
 		 */
 		public ChatCompletionRequest(List<ChatCompletionMessage> messages, String model, List<FunctionTool> tools,
 				ToolChoice toolChoice) {
-			this(model, messages, tools, toolChoice, null, 1.0, null, false, false, null, null, null);
+			this(model, messages, tools, toolChoice, null, 1.0, null, null, null, null, false, false, null, null, null);
 		}
 
 		/**
@@ -721,7 +738,7 @@ public class MistralAiApi {
 		 * stream.
 		 */
 		public ChatCompletionRequest(List<ChatCompletionMessage> messages, Boolean stream) {
-			this(null, messages, null, null, 0.7, 1.0, null, stream, false, null, null, null);
+			this(null, messages, null, null, 0.7, 1.0, null, null, null, null, stream, false, null, null, null);
 		}
 
 		/**
@@ -745,16 +762,347 @@ public class MistralAiApi {
 		/**
 		 * An object specifying the format that the model must output.
 		 *
-		 * @param type Must be one of 'text', 'json_object' or 'json_schema'.
-		 * @param jsonSchema A specific JSON schema to match, if 'type' is 'json_schema'.
+		 * <p>
+		 * Setting the type to JSON_SCHEMA enables Structured Outputs which ensures the
+		 * model will match your supplied JSON schema.
+		 * </p>
+		 *
+		 * @author Ricken Bazolo
+		 * @author Christian Tzolov
+		 * @see <a href= "https://docs.mistral.ai/capabilities/structured-output/">Mistral
+		 * AI Structured Output</a>
 		 */
 		@JsonInclude(Include.NON_NULL)
-		public record ResponseFormat(@JsonProperty("type") String type,
-				@JsonProperty("json_schema") Map<String, Object> jsonSchema) {
+		public static class ResponseFormat {
 
-			public ResponseFormat(String type) {
-				this(type, null);
+			/**
+			 * Type Must be one of 'text', 'json_object' or 'json_schema'.
+			 */
+			@JsonProperty("type")
+			private Type type;
+
+			/**
+			 * JSON schema object that describes the format of the JSON object. Only
+			 * applicable when type is 'json_schema'.
+			 */
+			@JsonProperty("json_schema")
+			private @Nullable JsonSchema jsonSchema;
+
+			@JsonIgnore
+			private @Nullable String schema;
+
+			@SuppressWarnings("NullAway") // Constructor designed for Jackson databinding
+			public ResponseFormat() {
 			}
+
+			/**
+			 * @deprecated Use {@link #builder()} or factory methods instead.
+			 */
+			@Deprecated
+			public ResponseFormat(String type) {
+				this(Type.fromValue(type), (JsonSchema) null);
+			}
+
+			/**
+			 * @deprecated Use {@link #builder()} or factory methods instead.
+			 */
+			@Deprecated
+			public ResponseFormat(String type, @Nullable Map<String, Object> jsonSchema) {
+				this(Type.fromValue(type),
+						jsonSchema != null ? JsonSchema.builder().schema(jsonSchema).strict(true).build() : null);
+			}
+
+			private ResponseFormat(Type type, @Nullable JsonSchema jsonSchema) {
+				this.type = type;
+				this.jsonSchema = jsonSchema;
+			}
+
+			public ResponseFormat(Type type, String schema) {
+				this(type, org.springframework.util.StringUtils.hasText(schema)
+						? JsonSchema.builder().schema(schema).strict(true).build() : null);
+			}
+
+			public Type getType() {
+				return this.type;
+			}
+
+			public void setType(Type type) {
+				this.type = type;
+			}
+
+			public @Nullable JsonSchema getJsonSchema() {
+				return this.jsonSchema;
+			}
+
+			public void setJsonSchema(JsonSchema jsonSchema) {
+				this.jsonSchema = jsonSchema;
+			}
+
+			public @Nullable String getSchema() {
+				return this.schema;
+			}
+
+			public void setSchema(@Nullable String schema) {
+				this.schema = schema;
+				if (schema != null) {
+					this.jsonSchema = JsonSchema.builder().schema(schema).strict(true).build();
+				}
+			}
+
+			// Factory methods
+
+			/**
+			 * Creates a ResponseFormat for text output.
+			 * @return ResponseFormat configured for text output
+			 */
+			public static ResponseFormat text() {
+				return new ResponseFormat(Type.TEXT, (JsonSchema) null);
+			}
+
+			/**
+			 * Creates a ResponseFormat for JSON object output (JSON mode).
+			 * @return ResponseFormat configured for JSON object output
+			 */
+			public static ResponseFormat jsonObject() {
+				return new ResponseFormat(Type.JSON_OBJECT, (JsonSchema) null);
+			}
+
+			/**
+			 * Creates a ResponseFormat for JSON schema output with automatic schema
+			 * generation from a class.
+			 * @param clazz the class to generate the JSON schema from
+			 * @return ResponseFormat configured with the generated JSON schema
+			 */
+			public static ResponseFormat jsonSchema(Class<?> clazz) {
+				String schemaJson = org.springframework.ai.util.json.schema.JsonSchemaGenerator.generateForType(clazz);
+				return jsonSchema(schemaJson);
+			}
+
+			/**
+			 * Creates a ResponseFormat for JSON schema output with a JSON schema string.
+			 * @param schema the JSON schema as a string
+			 * @return ResponseFormat configured with the provided JSON schema
+			 */
+			public static ResponseFormat jsonSchema(String schema) {
+				return new ResponseFormat(Type.JSON_SCHEMA, JsonSchema.builder().schema(schema).strict(true).build());
+			}
+
+			/**
+			 * Creates a ResponseFormat for JSON schema output with a JSON schema map.
+			 * @param schema the JSON schema as a map
+			 * @return ResponseFormat configured with the provided JSON schema
+			 */
+			public static ResponseFormat jsonSchema(Map<String, Object> schema) {
+				return new ResponseFormat(Type.JSON_SCHEMA, JsonSchema.builder().schema(schema).strict(true).build());
+			}
+
+			public static Builder builder() {
+				return new Builder();
+			}
+
+			@Override
+			public boolean equals(Object o) {
+				if (this == o) {
+					return true;
+				}
+				if (o == null || getClass() != o.getClass()) {
+					return false;
+				}
+				ResponseFormat that = (ResponseFormat) o;
+				return this.type == that.type && Objects.equals(this.jsonSchema, that.jsonSchema);
+			}
+
+			@Override
+			public int hashCode() {
+				return Objects.hash(this.type, this.jsonSchema);
+			}
+
+			@Override
+			public String toString() {
+				return "ResponseFormat{" + "type=" + this.type + ", jsonSchema=" + this.jsonSchema + '}';
+			}
+
+			public static final class Builder {
+
+				private @Nullable Type type;
+
+				private @Nullable JsonSchema jsonSchema;
+
+				private Builder() {
+				}
+
+				public Builder type(Type type) {
+					this.type = type;
+					return this;
+				}
+
+				public Builder jsonSchema(JsonSchema jsonSchema) {
+					this.jsonSchema = jsonSchema;
+					return this;
+				}
+
+				public Builder jsonSchema(String jsonSchema) {
+					this.jsonSchema = JsonSchema.builder().schema(jsonSchema).build();
+					return this;
+				}
+
+				public ResponseFormat build() {
+					Assert.state(this.type != null, "The ype ");
+					return new ResponseFormat(this.type, this.jsonSchema);
+				}
+
+			}
+
+			public enum Type {
+
+				/**
+				 * Generates a text response. (default)
+				 */
+				@JsonProperty("text")
+				TEXT("text"),
+
+				/**
+				 * Enables JSON mode, which guarantees the message the model generates is
+				 * valid JSON.
+				 */
+				@JsonProperty("json_object")
+				JSON_OBJECT("json_object"),
+
+				/**
+				 * Enables Structured Outputs which guarantees the model will match your
+				 * supplied JSON schema.
+				 */
+				@JsonProperty("json_schema")
+				JSON_SCHEMA("json_schema");
+
+				private final String value;
+
+				Type(String value) {
+					this.value = value;
+				}
+
+				public String getValue() {
+					return this.value;
+				}
+
+				public static Type fromValue(String value) {
+					for (Type type : Type.values()) {
+						if (type.value.equals(value)) {
+							return type;
+						}
+					}
+					throw new IllegalArgumentException("Unknown ResponseFormat type: " + value);
+				}
+
+			}
+
+			/**
+			 * JSON schema object that describes the format of the JSON object. Applicable
+			 * for the 'json_schema' type only.
+			 */
+			@JsonInclude(Include.NON_NULL)
+			public static class JsonSchema {
+
+				@JsonProperty("name")
+				private String name;
+
+				@JsonProperty("schema")
+				private Map<String, Object> schema;
+
+				@JsonProperty("strict")
+				private Boolean strict;
+
+				@SuppressWarnings("NullAway") // Constructor designed for Jackson
+												// databinding
+				public JsonSchema() {
+				}
+
+				public String getName() {
+					return this.name;
+				}
+
+				public Map<String, Object> getSchema() {
+					return this.schema;
+				}
+
+				public Boolean getStrict() {
+					return this.strict;
+				}
+
+				private JsonSchema(String name, Map<String, Object> schema, Boolean strict) {
+					this.name = name;
+					this.schema = schema;
+					this.strict = strict;
+				}
+
+				public static Builder builder() {
+					return new Builder();
+				}
+
+				@Override
+				public int hashCode() {
+					return Objects.hash(this.name, this.schema, this.strict);
+				}
+
+				@Override
+				public boolean equals(@Nullable Object o) {
+					if (this == o) {
+						return true;
+					}
+					if (o == null || getClass() != o.getClass()) {
+						return false;
+					}
+					JsonSchema that = (JsonSchema) o;
+					return Objects.equals(this.name, that.name) && Objects.equals(this.schema, that.schema)
+							&& Objects.equals(this.strict, that.strict);
+				}
+
+				@Override
+				public String toString() {
+					return "JsonSchema{" + "name='" + this.name + '\'' + ", schema=" + this.schema + ", strict="
+							+ this.strict + '}';
+				}
+
+				public static final class Builder {
+
+					private String name = "custom_schema";
+
+					private @Nullable Map<String, Object> schema;
+
+					private Boolean strict = true;
+
+					private Builder() {
+					}
+
+					public Builder name(String name) {
+						this.name = name;
+						return this;
+					}
+
+					public Builder schema(Map<String, Object> schema) {
+						this.schema = schema;
+						return this;
+					}
+
+					public Builder schema(String schema) {
+						this.schema = ModelOptionsUtils.jsonToMap(schema);
+						return this;
+					}
+
+					public Builder strict(Boolean strict) {
+						this.strict = strict;
+						return this;
+					}
+
+					public JsonSchema build() {
+						Assert.state(this.schema != null, "The schema must be defined");
+						return new JsonSchema(this.name, this.schema, this.strict);
+					}
+
+				}
+
+			}
+
 		}
 
 	}
@@ -762,8 +1110,9 @@ public class MistralAiApi {
 	/**
 	 * Message comprising the conversation.
 	 *
-	 * @param rawContent The contents of the message. Can be either a {@link MediaContent}
-	 * or a {@link String}. The response message content is always a {@link String}.
+	 * @param rawContent The content of the message. For request, message content can be
+	 * either a list of {@link MediaContent} or a {@link String}. For response, only
+	 * {@link String} is supported as message content for now.
 	 * @param role The role of the messages author. Could be one of the {@link Role}
 	 * types.
 	 * @param name The name of the author of the message.
@@ -776,11 +1125,11 @@ public class MistralAiApi {
 	@JsonIgnoreProperties(ignoreUnknown = true)
 	public record ChatCompletionMessage(
 	// @formatter:off
-		@JsonProperty("content") Object rawContent,
+		@JsonProperty("content") @Nullable Object rawContent,
 		@JsonProperty("role") Role role,
-		@JsonProperty("name") String name,
-		@JsonProperty("tool_calls") List<ToolCall> toolCalls,
-		@JsonProperty("tool_call_id") String toolCallId) {
+		@JsonProperty("name") @Nullable String name,
+		@JsonProperty("tool_calls") @Nullable List<ToolCall> toolCalls,
+		@JsonProperty("tool_call_id") @Nullable String toolCallId) {
 		// @formatter:on
 
 		/**
@@ -791,7 +1140,8 @@ public class MistralAiApi {
 		 * @param toolCalls The tool calls generated by the model, such as function calls.
 		 * Applicable only for {@link Role#ASSISTANT} role and null otherwise.
 		 */
-		public ChatCompletionMessage(Object content, Role role, String name, List<ToolCall> toolCalls) {
+		public ChatCompletionMessage(@Nullable Object content, Role role, @Nullable String name,
+				List<ToolCall> toolCalls) {
 			this(content, role, name, toolCalls, null);
 		}
 
@@ -808,7 +1158,7 @@ public class MistralAiApi {
 		/**
 		 * Get message content as String.
 		 */
-		public String content() {
+		public @Nullable String content() {
 			if (this.rawContent == null) {
 				return null;
 			}
@@ -853,7 +1203,8 @@ public class MistralAiApi {
 		@JsonInclude(Include.NON_NULL)
 		@JsonIgnoreProperties(ignoreUnknown = true)
 		public record ToolCall(@JsonProperty("id") String id, @JsonProperty("type") String type,
-				@JsonProperty("function") ChatCompletionFunction function, @JsonProperty("index") Integer index) {
+				@JsonProperty("function") ChatCompletionFunction function,
+				@JsonProperty("index") @Nullable Integer index) {
 
 		}
 
@@ -884,8 +1235,8 @@ public class MistralAiApi {
 		public record MediaContent(
 		// @formatter:off
 		   		@JsonProperty("type") String type,
-		   		@JsonProperty("text") String text,
-		   		@JsonProperty("image_url") ImageUrl imageUrl
+		   		@JsonProperty("text") @Nullable String text,
+		   		@JsonProperty("image_url") @Nullable ImageUrl imageUrl
 				// @formatter:on
 		) {
 
@@ -917,7 +1268,7 @@ public class MistralAiApi {
 			public record ImageUrl(
 			// @formatter:off
 					@JsonProperty("url") String url,
-					@JsonProperty("detail") String detail
+					@JsonProperty("detail") @Nullable String detail
 					// @formatter:on
 			) {
 
@@ -952,7 +1303,7 @@ public class MistralAiApi {
 		@JsonProperty("created") Long created,
 		@JsonProperty("model") String model,
 		@JsonProperty("choices") List<Choice> choices,
-		@JsonProperty("usage") Usage usage) {
+		@JsonProperty("usage") @Nullable Usage usage) {
 		 // @formatter:on
 
 		/**
@@ -970,7 +1321,7 @@ public class MistralAiApi {
 			@JsonProperty("index") Integer index,
 			@JsonProperty("message") ChatCompletionMessage message,
 			@JsonProperty("finish_reason") ChatCompletionFinishReason finishReason,
-			@JsonProperty("logprobs") LogProbs logprobs) {
+			@JsonProperty("logprobs") @Nullable LogProbs logprobs) {
 			 // @formatter:on
 		}
 
@@ -1046,11 +1397,11 @@ public class MistralAiApi {
 	public record ChatCompletionChunk(
 	// @formatter:off
 		@JsonProperty("id") String id,
-		@JsonProperty("object") String object,
-		@JsonProperty("created") Long created,
+		@JsonProperty("object") @Nullable String object,
+		@JsonProperty("created") @Nullable Long created,
 		@JsonProperty("model") String model,
 		@JsonProperty("choices") List<ChunkChoice> choices,
-		@JsonProperty("usage") Usage usage) {
+		@JsonProperty("usage") @Nullable Usage usage) {
 		 // @formatter:on
 
 		/**
@@ -1068,7 +1419,7 @@ public class MistralAiApi {
 			@JsonProperty("index") Integer index,
 			@JsonProperty("delta") ChatCompletionMessage delta,
 			@JsonProperty("finish_reason") ChatCompletionFinishReason finishReason,
-			@JsonProperty("logprobs") LogProbs logprobs) {
+			@JsonProperty("logprobs") @Nullable LogProbs logprobs) {
 			 // @formatter:on
 		}
 
@@ -1078,7 +1429,7 @@ public class MistralAiApi {
 
 		private String baseUrl = DEFAULT_BASE_URL;
 
-		private String apiKey;
+		private @Nullable String apiKey;
 
 		private RestClient.Builder restClientBuilder = RestClient.builder();
 
@@ -1117,6 +1468,7 @@ public class MistralAiApi {
 		}
 
 		public MistralAiApi build() {
+			Assert.state(this.apiKey != null, "The API key must not be null");
 			return new MistralAiApi(this.baseUrl, this.apiKey, this.restClientBuilder, this.webClientBuilder,
 					this.responseErrorHandler);
 		}

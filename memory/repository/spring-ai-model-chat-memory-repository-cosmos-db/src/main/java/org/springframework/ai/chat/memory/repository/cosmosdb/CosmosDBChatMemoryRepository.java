@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -187,7 +188,9 @@ public final class CosmosDBChatMemoryRepository implements ChatMemoryRepository 
 		doc.put("id", UUID.randomUUID().toString());
 		doc.put("conversationId", conversationId);
 		doc.put("messageType", message.getMessageType().name());
-		doc.put("content", message.getText());
+		if (message.getText() != null) {
+			doc.put("content", message.getText());
+		}
 		doc.put("sequenceNumber", sequenceNumber);
 
 		// Add timestamp from metadata or use provided timestamp
@@ -213,14 +216,14 @@ public final class CosmosDBChatMemoryRepository implements ChatMemoryRepository 
 	}
 
 	private Message mapToMessage(Map<String, Object> doc) {
-		String content = (String) doc.get("content");
-		String messageTypeStr = (String) doc.get("messageType");
+		String content = (String) Objects.requireNonNull(doc.get("content"));
+		String messageTypeStr = (String) Objects.requireNonNull(doc.get("messageType"));
 		MessageType messageType = MessageType.valueOf(messageTypeStr);
 
 		// Reconstruct metadata
 		Map<String, Object> metadata = new HashMap<>();
 		if (doc.containsKey("messageTimestamp")) {
-			Long timestampMillis = ((Number) doc.get("messageTimestamp")).longValue();
+			long timestampMillis = ((Number) doc.get("messageTimestamp")).longValue();
 			metadata.put(CONVERSATION_TS, Instant.ofEpochMilli(timestampMillis));
 		}
 

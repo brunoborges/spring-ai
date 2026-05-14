@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import org.jspecify.annotations.Nullable;
 import redis.clients.jedis.JedisPooled;
 
 import org.springframework.util.Assert;
@@ -85,8 +86,7 @@ public class RedisChatMemoryConfig {
 		this.initializeSchema = builder.initializeSchema;
 		this.maxConversationIds = builder.maxConversationIds;
 		this.maxMessagesPerConversation = builder.maxMessagesPerConversation;
-		this.metadataFields = builder.metadataFields != null ? Collections.unmodifiableList(builder.metadataFields)
-				: Collections.emptyList();
+		this.metadataFields = Collections.unmodifiableList(builder.metadataFields);
 	}
 
 	public static Builder builder() {
@@ -143,7 +143,7 @@ public class RedisChatMemoryConfig {
 	public static class Builder {
 
 		/** The Redis client */
-		private JedisPooled jedisClient;
+		private @Nullable JedisPooled jedisClient;
 
 		/** The index name */
 		private String indexName = DEFAULT_INDEX_NAME;
@@ -164,7 +164,7 @@ public class RedisChatMemoryConfig {
 		private int maxMessagesPerConversation = DEFAULT_MAX_RESULTS;
 
 		/** Optional metadata field definitions for indexing */
-		private List<Map<String, String>> metadataFields;
+		private List<Map<String, String>> metadataFields = Collections.emptyList();
 
 		/**
 		 * Sets the Redis client.

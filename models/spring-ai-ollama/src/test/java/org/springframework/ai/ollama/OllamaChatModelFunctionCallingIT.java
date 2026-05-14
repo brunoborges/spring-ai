@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -76,6 +76,27 @@ class OllamaChatModelFunctionCallingIT extends BaseOllamaIT {
 		logger.info("Response: {}", response);
 
 		assertThat(response.getResult().getOutput().getText()).contains("30", "10", "15");
+	}
+
+	@Test
+	void toolCallIdIsPopulated() {
+		UserMessage userMessage = new UserMessage("What are the weather conditions in San Francisco?");
+
+		var promptOptions = OllamaChatOptions.builder()
+			.model(MODEL)
+			.toolCallbacks(List.of(FunctionToolCallback.builder("getCurrentWeather", new MockWeatherService())
+				.description(
+						"Find the weather conditions, forecasts, and temperatures for a location, like a city or state.")
+				.inputType(MockWeatherService.Request.class)
+				.build()))
+			.internalToolExecutionEnabled(false)
+			.build();
+
+		ChatResponse response = this.chatModel.call(new Prompt(List.of(userMessage), promptOptions));
+
+		AssistantMessage assistantMessage = response.getResult().getOutput();
+		assertThat(assistantMessage.getToolCalls()).isNotNull().hasSize(1);
+		assertThat(assistantMessage.getToolCalls().get(0).id()).isNotBlank();
 	}
 
 	@Test

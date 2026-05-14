@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@
 
 package org.springframework.ai.google.genai;
 
+import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -25,18 +25,17 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.fasterxml.jackson.annotation.JsonProperty;
+import org.jspecify.annotations.NullMarked;
+import org.jspecify.annotations.Nullable;
 
+import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.google.genai.GoogleGenAiChatModel.ChatModel;
 import org.springframework.ai.google.genai.common.GoogleGenAiSafetySetting;
 import org.springframework.ai.google.genai.common.GoogleGenAiThinkingLevel;
+import org.springframework.ai.model.tool.DefaultToolCallingChatOptions;
 import org.springframework.ai.model.tool.StructuredOutputChatOptions;
 import org.springframework.ai.model.tool.ToolCallingChatOptions;
 import org.springframework.ai.tool.ToolCallback;
-import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 
 /**
@@ -48,9 +47,9 @@ import org.springframework.util.Assert;
  * @author Ilayaperumal Gopinathan
  * @author Soby Chacko
  * @author Dan Dobrin
+ * @author Sebastien Deleuze
  * @since 1.0.0
  */
-@JsonInclude(Include.NON_NULL)
 public class GoogleGenAiChatOptions implements ToolCallingChatOptions, StructuredOutputChatOptions {
 
 	// https://cloud.google.com/vertex-ai/docs/reference/rest/v1/GenerationConfig
@@ -58,67 +57,78 @@ public class GoogleGenAiChatOptions implements ToolCallingChatOptions, Structure
 	/**
 	 * Optional. Stop sequences.
 	 */
-	private @JsonProperty("stopSequences") List<String> stopSequences;
+	@Nullable private List<String> stopSequences;
 
 	// @formatter:off
 
 	/**
 	 * Optional. Controls the randomness of predictions.
 	 */
-	private @JsonProperty("temperature") Double temperature;
+	@Nullable
+	private Double temperature;
 
 	/**
 	 * Optional. If specified, nucleus sampling will be used.
 	 */
-	private @JsonProperty("topP") Double topP;
+	@Nullable
+	private Double topP;
 
 	/**
 	 * Optional. If specified, top k sampling will be used.
 	 */
-	private @JsonProperty("topK") Integer topK;
+	@Nullable
+	private Integer topK;
 
 	/**
 	 * Optional. The maximum number of tokens to generate.
 	 */
-	private @JsonProperty("candidateCount") Integer candidateCount;
+	@Nullable
+	private Integer candidateCount;
 
 	/**
 	 * Optional. The maximum number of tokens to generate.
 	 */
-	private @JsonProperty("maxOutputTokens") Integer maxOutputTokens;
+	@Nullable
+	private Integer maxOutputTokens;
 
 	/**
 	 * Gemini model name.
 	 */
-	private @JsonProperty("modelName") String model;
+	@Nullable
+	private String model;
 
 	/**
 	 * Optional. Output response mimetype of the generated candidate text.
 	 * - text/plain: (default) Text output.
 	 * - application/json: JSON response in the candidates.
 	 */
-	private @JsonProperty("responseMimeType") String responseMimeType;
+	@Nullable
+	private String responseMimeType;
 
 	/**
 	 * Optional. Gemini response schema.
 	 */
-	private @JsonProperty("responseSchema") String responseSchema;
+	@Nullable
+	private String responseSchema;
 
 	/**
 	 * Optional. Frequency penalties.
 	 */
-	private @JsonProperty("frequencyPenalty") Double frequencyPenalty;
+	@Nullable
+	private Double frequencyPenalty;
 
 	/**
 	 * Optional. Positive penalties.
 	 */
-	private @JsonProperty("presencePenalty") Double presencePenalty;
+	@Nullable
+	private Double presencePenalty;
 
 	/**
 	 * Optional. Thinking budget for the thinking process.
 	 * This is part of the thinkingConfig in GenerationConfig.
 	 */
-	private @JsonProperty("thinkingBudget") Integer thinkingBudget;
+	@Nullable
+	private Integer thinkingBudget;
 
 	/**
 	 * Optional. Whether to include thoughts in the response.
@@ -131,205 +141,189 @@ public class GoogleGenAiChatOptions implements ToolCallingChatOptions, Structure
 	 * <p>Note: Enabling thoughts increases token usage and API costs.
 	 * This is part of the thinkingConfig in GenerationConfig.
 	 */
-	private @JsonProperty("includeThoughts") Boolean includeThoughts;
+	@Nullable
+	private Boolean includeThoughts;
 
 	/**
 	 * Optional. The level of thinking tokens the model should generate.
 	 * LOW = minimal thinking, HIGH = extensive thinking.
 	 * This is part of the thinkingConfig in GenerationConfig.
 	 */
-	private @JsonProperty("thinkingLevel") GoogleGenAiThinkingLevel thinkingLevel;
+	@Nullable
+	private GoogleGenAiThinkingLevel thinkingLevel;
 
 	/**
 	 * Optional. Whether to include extended usage metadata in responses.
 	 * When true, includes thinking tokens, cached content, tool-use tokens, and modality details.
 	 * Defaults to true for full metadata access.
 	 */
-	private @JsonProperty("includeExtendedUsageMetadata") Boolean includeExtendedUsageMetadata;
+	@Nullable
+	private Boolean includeExtendedUsageMetadata;
 
 	/**
 	 * Optional. The name of cached content to use for this request.
 	 * When set, the cached content will be used as context for the request.
 	 */
-	private @JsonProperty("cachedContentName") String cachedContentName;
+	@Nullable
+	private String cachedContentName;
 
 	/**
 	 * Optional. Whether to use cached content if available.
 	 * When true and cachedContentName is set, the system will use the cached content.
 	 */
-	private @JsonProperty("useCachedContent") Boolean useCachedContent;
+	@Nullable
+	private Boolean useCachedContent;
 
 	/**
 	 * Optional. Automatically cache prompts that exceed this token threshold.
 	 * When set, prompts larger than this value will be automatically cached for reuse.
 	 * Set to null to disable auto-caching.
 	 */
-	private @JsonProperty("autoCacheThreshold") Integer autoCacheThreshold;
+	@Nullable
+	private Integer autoCacheThreshold;
 
 	/**
 	 * Optional. Time-to-live for auto-cached content.
 	 * Used when auto-caching is enabled. Defaults to 1 hour if not specified.
 	 */
-	@JsonIgnore
-	private java.time.Duration autoCacheTtl;
+	@Nullable
+	private Duration autoCacheTtl;
 
 	/**
 	 * Collection of {@link ToolCallback}s to be used for tool calling in the chat
 	 * completion requests.
 	 */
-	@JsonIgnore
 	private List<ToolCallback> toolCallbacks = new ArrayList<>();
 
 	/**
      * Collection of tool names to be resolved at runtime and used for tool calling in the
 	 * chat completion requests.
 	 */
-	@JsonIgnore
 	private Set<String> toolNames = new HashSet<>();
 
 	/**
 	 * Whether to enable the tool execution lifecycle internally in ChatModel.
 	 */
-	@JsonIgnore
+	@Nullable
 	private Boolean internalToolExecutionEnabled;
 
-	@JsonIgnore
 	private Map<String, Object> toolContext = new HashMap<>();
 
 	/**
 	 * Use Google search Grounding feature
 	 */
-	@JsonIgnore
 	private Boolean googleSearchRetrieval = false;
 
-	@JsonIgnore
+	/**
+	 * Optional. When true, the API response will include server-side tool calls and
+	 * responses (e.g., Google Search invocations) within Content message parts.
+	 * This allows clients to observe the server's tool invocations without executing them.
+	 * Only supported with MLDev (Google AI) API, not Vertex AI.
+	 */
+	private Boolean includeServerSideToolInvocations = false;
+
 	private List<GoogleGenAiSafetySetting> safetySettings = new ArrayList<>();
 
-	@JsonIgnore
 	private Map<String, String> labels = new HashMap<>();
 	// @formatter:on
+
+	// TODO: left here for ModelOptionUtils.merge*()
+	public GoogleGenAiChatOptions() {
+	}
+
+	protected GoogleGenAiChatOptions(@Nullable String model, @Nullable Double frequencyPenalty,
+			@Nullable Integer maxOutputTokens, @Nullable Double presencePenalty, @Nullable List<String> stopSequences,
+			@Nullable Double temperature, @Nullable Integer topK, @Nullable Double topP,
+			@Nullable Boolean internalToolExecutionEnabled, @Nullable List<ToolCallback> toolCallbacks,
+			@Nullable Set<String> toolNames, @Nullable Map<String, Object> toolContext,
+			@Nullable Integer candidateCount, @Nullable String responseMimeType, @Nullable String responseSchema,
+			@Nullable Integer thinkingBudget, @Nullable Boolean includeThoughts,
+			@Nullable GoogleGenAiThinkingLevel thinkingLevel, @Nullable Boolean includeExtendedUsageMetadata,
+			@Nullable String cachedContentName, @Nullable Boolean useCachedContent,
+			@Nullable Integer autoCacheThreshold, @Nullable Duration autoCacheTtl,
+			@Nullable Boolean googleSearchRetrieval, @Nullable Boolean includeServerSideToolInvocations,
+			@Nullable List<GoogleGenAiSafetySetting> safetySettings, @Nullable Map<String, String> labels) {
+		this.model = model;
+		this.frequencyPenalty = frequencyPenalty;
+		this.maxOutputTokens = maxOutputTokens;
+		this.presencePenalty = presencePenalty;
+		this.stopSequences = stopSequences;
+		this.temperature = temperature;
+		this.topK = topK;
+		this.topP = topP;
+		this.internalToolExecutionEnabled = internalToolExecutionEnabled;
+		this.toolCallbacks = toolCallbacks == null ? new ArrayList<>() : new ArrayList<>(toolCallbacks);
+		this.toolNames = toolNames == null ? new HashSet<>() : new HashSet<>(toolNames);
+		this.toolContext = toolContext == null ? new HashMap<>() : new HashMap<>(toolContext);
+		this.candidateCount = candidateCount;
+		this.responseMimeType = responseMimeType;
+		this.responseSchema = responseSchema;
+		this.thinkingBudget = thinkingBudget;
+		this.includeThoughts = includeThoughts;
+		this.thinkingLevel = thinkingLevel;
+		this.includeExtendedUsageMetadata = includeExtendedUsageMetadata;
+		this.cachedContentName = cachedContentName;
+		this.useCachedContent = useCachedContent;
+		this.autoCacheThreshold = autoCacheThreshold;
+		this.autoCacheTtl = autoCacheTtl;
+		this.googleSearchRetrieval = Boolean.TRUE.equals(googleSearchRetrieval);
+		this.includeServerSideToolInvocations = Boolean.TRUE.equals(includeServerSideToolInvocations);
+		this.safetySettings = safetySettings == null ? new ArrayList<>() : new ArrayList<>(safetySettings);
+		this.labels = labels == null ? new HashMap<>() : new HashMap<>(labels);
+	}
 
 	public static Builder builder() {
 		return new Builder();
 	}
 
 	public static GoogleGenAiChatOptions fromOptions(GoogleGenAiChatOptions fromOptions) {
-		GoogleGenAiChatOptions options = new GoogleGenAiChatOptions();
-		options.setStopSequences(fromOptions.getStopSequences());
-		options.setTemperature(fromOptions.getTemperature());
-		options.setTopP(fromOptions.getTopP());
-		options.setTopK(fromOptions.getTopK());
-		options.setFrequencyPenalty(fromOptions.getFrequencyPenalty());
-		options.setPresencePenalty(fromOptions.getPresencePenalty());
-		options.setCandidateCount(fromOptions.getCandidateCount());
-		options.setMaxOutputTokens(fromOptions.getMaxOutputTokens());
-		options.setModel(fromOptions.getModel());
-		options.setToolCallbacks(fromOptions.getToolCallbacks());
-		options.setResponseMimeType(fromOptions.getResponseMimeType());
-		options.setResponseSchema(fromOptions.getResponseSchema());
-		options.setToolNames(fromOptions.getToolNames());
-		options.setGoogleSearchRetrieval(fromOptions.getGoogleSearchRetrieval());
-		options.setSafetySettings(fromOptions.getSafetySettings());
-		options.setInternalToolExecutionEnabled(fromOptions.getInternalToolExecutionEnabled());
-		options.setToolContext(fromOptions.getToolContext());
-		options.setThinkingBudget(fromOptions.getThinkingBudget());
-		options.setIncludeThoughts(fromOptions.getIncludeThoughts());
-		options.setThinkingLevel(fromOptions.getThinkingLevel());
-		options.setLabels(fromOptions.getLabels());
-		options.setIncludeExtendedUsageMetadata(fromOptions.getIncludeExtendedUsageMetadata());
-		options.setCachedContentName(fromOptions.getCachedContentName());
-		options.setUseCachedContent(fromOptions.getUseCachedContent());
-		options.setAutoCacheThreshold(fromOptions.getAutoCacheThreshold());
-		options.setAutoCacheTtl(fromOptions.getAutoCacheTtl());
-		return options;
+		return fromOptions.mutate().build();
 	}
 
 	@Override
-	public List<String> getStopSequences() {
+	public @Nullable List<String> getStopSequences() {
 		return this.stopSequences;
 	}
 
-	public void setStopSequences(List<String> stopSequences) {
-		this.stopSequences = stopSequences;
-	}
-
 	@Override
-	public Double getTemperature() {
+	public @Nullable Double getTemperature() {
 		return this.temperature;
 	}
 
-	public void setTemperature(Double temperature) {
-		this.temperature = temperature;
-	}
-
 	@Override
-	public Double getTopP() {
+	public @Nullable Double getTopP() {
 		return this.topP;
 	}
 
-	public void setTopP(Double topP) {
-		this.topP = topP;
-	}
-
 	@Override
-	public Integer getTopK() {
+	public @Nullable Integer getTopK() {
 		return this.topK;
 	}
 
-	public void setTopK(Integer topK) {
-		this.topK = topK;
-	}
-
-	public Integer getCandidateCount() {
+	public @Nullable Integer getCandidateCount() {
 		return this.candidateCount;
 	}
 
-	public void setCandidateCount(Integer candidateCount) {
-		this.candidateCount = candidateCount;
-	}
-
 	@Override
-	@JsonIgnore
-	public Integer getMaxTokens() {
+	public @Nullable Integer getMaxTokens() {
 		return getMaxOutputTokens();
 	}
 
-	@JsonIgnore
-	public void setMaxTokens(Integer maxTokens) {
-		setMaxOutputTokens(maxTokens);
-	}
-
-	public Integer getMaxOutputTokens() {
+	public @Nullable Integer getMaxOutputTokens() {
 		return this.maxOutputTokens;
 	}
 
-	public void setMaxOutputTokens(Integer maxOutputTokens) {
-		this.maxOutputTokens = maxOutputTokens;
-	}
-
 	@Override
-	public String getModel() {
+	public @Nullable String getModel() {
 		return this.model;
 	}
 
-	public void setModel(String modelName) {
-		this.model = modelName;
-	}
-
-	public String getResponseMimeType() {
+	public @Nullable String getResponseMimeType() {
 		return this.responseMimeType;
 	}
 
-	public void setResponseMimeType(String mimeType) {
-		this.responseMimeType = mimeType;
-	}
-
-	public String getResponseSchema() {
+	public @Nullable String getResponseSchema() {
 		return this.responseSchema;
-	}
-
-	public void setResponseSchema(String responseSchema) {
-		this.responseSchema = responseSchema;
 	}
 
 	@Override
@@ -338,142 +332,71 @@ public class GoogleGenAiChatOptions implements ToolCallingChatOptions, Structure
 	}
 
 	@Override
-	public void setToolCallbacks(List<ToolCallback> toolCallbacks) {
-		Assert.notNull(toolCallbacks, "toolCallbacks cannot be null");
-		Assert.noNullElements(toolCallbacks, "toolCallbacks cannot contain null elements");
-		this.toolCallbacks = toolCallbacks;
-	}
-
-	@Override
 	public Set<String> getToolNames() {
 		return this.toolNames;
 	}
 
 	@Override
-	public void setToolNames(Set<String> toolNames) {
-		Assert.notNull(toolNames, "toolNames cannot be null");
-		Assert.noNullElements(toolNames, "toolNames cannot contain null elements");
-		toolNames.forEach(tool -> Assert.hasText(tool, "toolNames cannot contain empty elements"));
-		this.toolNames = toolNames;
-	}
-
-	@Override
-	@Nullable
-	public Boolean getInternalToolExecutionEnabled() {
+	public @Nullable Boolean getInternalToolExecutionEnabled() {
 		return this.internalToolExecutionEnabled;
 	}
 
 	@Override
-	public void setInternalToolExecutionEnabled(@Nullable Boolean internalToolExecutionEnabled) {
-		this.internalToolExecutionEnabled = internalToolExecutionEnabled;
-	}
-
-	@Override
-	public Double getFrequencyPenalty() {
+	public @Nullable Double getFrequencyPenalty() {
 		return this.frequencyPenalty;
 	}
 
 	@Override
-	public Double getPresencePenalty() {
+	public @Nullable Double getPresencePenalty() {
 		return this.presencePenalty;
 	}
 
-	public void setFrequencyPenalty(Double frequencyPenalty) {
-		this.frequencyPenalty = frequencyPenalty;
-	}
-
-	public void setPresencePenalty(Double presencePenalty) {
-		this.presencePenalty = presencePenalty;
-	}
-
-	public Integer getThinkingBudget() {
+	public @Nullable Integer getThinkingBudget() {
 		return this.thinkingBudget;
 	}
 
-	public void setThinkingBudget(Integer thinkingBudget) {
-		this.thinkingBudget = thinkingBudget;
-	}
-
-	public Boolean getIncludeThoughts() {
+	public @Nullable Boolean getIncludeThoughts() {
 		return this.includeThoughts;
 	}
 
-	public void setIncludeThoughts(Boolean includeThoughts) {
-		this.includeThoughts = includeThoughts;
-	}
-
-	public GoogleGenAiThinkingLevel getThinkingLevel() {
+	public @Nullable GoogleGenAiThinkingLevel getThinkingLevel() {
 		return this.thinkingLevel;
 	}
 
-	public void setThinkingLevel(GoogleGenAiThinkingLevel thinkingLevel) {
-		this.thinkingLevel = thinkingLevel;
-	}
-
-	public Boolean getIncludeExtendedUsageMetadata() {
+	public @Nullable Boolean getIncludeExtendedUsageMetadata() {
 		return this.includeExtendedUsageMetadata;
 	}
 
-	public void setIncludeExtendedUsageMetadata(Boolean includeExtendedUsageMetadata) {
-		this.includeExtendedUsageMetadata = includeExtendedUsageMetadata;
-	}
-
-	public String getCachedContentName() {
+	public @Nullable String getCachedContentName() {
 		return this.cachedContentName;
 	}
 
-	public void setCachedContentName(String cachedContentName) {
-		this.cachedContentName = cachedContentName;
-	}
-
-	public Boolean getUseCachedContent() {
+	public @Nullable Boolean getUseCachedContent() {
 		return this.useCachedContent;
 	}
 
-	public void setUseCachedContent(Boolean useCachedContent) {
-		this.useCachedContent = useCachedContent;
-	}
-
-	public Integer getAutoCacheThreshold() {
+	public @Nullable Integer getAutoCacheThreshold() {
 		return this.autoCacheThreshold;
 	}
 
-	public void setAutoCacheThreshold(Integer autoCacheThreshold) {
-		this.autoCacheThreshold = autoCacheThreshold;
-	}
-
-	public java.time.Duration getAutoCacheTtl() {
+	public @Nullable Duration getAutoCacheTtl() {
 		return this.autoCacheTtl;
 	}
 
-	public void setAutoCacheTtl(java.time.Duration autoCacheTtl) {
-		this.autoCacheTtl = autoCacheTtl;
-	}
-
-	public Boolean getGoogleSearchRetrieval() {
+	public @Nullable Boolean getGoogleSearchRetrieval() {
 		return this.googleSearchRetrieval;
 	}
 
-	public void setGoogleSearchRetrieval(Boolean googleSearchRetrieval) {
-		this.googleSearchRetrieval = googleSearchRetrieval;
+	public @Nullable Boolean getIncludeServerSideToolInvocations() {
+		return this.includeServerSideToolInvocations;
 	}
 
 	public List<GoogleGenAiSafetySetting> getSafetySettings() {
 		return this.safetySettings;
 	}
 
-	public void setSafetySettings(List<GoogleGenAiSafetySetting> safetySettings) {
-		Assert.notNull(safetySettings, "safetySettings must not be null");
-		this.safetySettings = safetySettings;
-	}
-
 	public Map<String, String> getLabels() {
 		return this.labels;
-	}
-
-	public void setLabels(Map<String, String> labels) {
-		Assert.notNull(labels, "labels must not be null");
-		this.labels = labels;
 	}
 
 	@Override
@@ -482,20 +405,8 @@ public class GoogleGenAiChatOptions implements ToolCallingChatOptions, Structure
 	}
 
 	@Override
-	public void setToolContext(Map<String, Object> toolContext) {
-		this.toolContext = toolContext;
-	}
-
-	@Override
-	public String getOutputSchema() {
+	public @Nullable String getOutputSchema() {
 		return this.getResponseSchema();
-	}
-
-	@Override
-	@JsonIgnore
-	public void setOutputSchema(String jsonSchemaText) {
-		this.setResponseSchema(jsonSchemaText);
-		this.setResponseMimeType("application/json");
 	}
 
 	@Override
@@ -507,6 +418,7 @@ public class GoogleGenAiChatOptions implements ToolCallingChatOptions, Structure
 			return false;
 		}
 		return Objects.equals(this.googleSearchRetrieval, that.googleSearchRetrieval)
+				&& Objects.equals(this.includeServerSideToolInvocations, that.includeServerSideToolInvocations)
 				&& Objects.equals(this.stopSequences, that.stopSequences)
 				&& Objects.equals(this.temperature, that.temperature) && Objects.equals(this.topP, that.topP)
 				&& Objects.equals(this.topK, that.topK) && Objects.equals(this.candidateCount, that.candidateCount)
@@ -530,8 +442,8 @@ public class GoogleGenAiChatOptions implements ToolCallingChatOptions, Structure
 		return Objects.hash(this.stopSequences, this.temperature, this.topP, this.topK, this.candidateCount,
 				this.frequencyPenalty, this.presencePenalty, this.thinkingBudget, this.includeThoughts,
 				this.thinkingLevel, this.maxOutputTokens, this.model, this.responseMimeType, this.responseSchema,
-				this.toolCallbacks, this.toolNames, this.googleSearchRetrieval, this.safetySettings,
-				this.internalToolExecutionEnabled, this.toolContext, this.labels);
+				this.toolCallbacks, this.toolNames, this.googleSearchRetrieval, this.includeServerSideToolInvocations,
+				this.safetySettings, this.internalToolExecutionEnabled, this.toolContext, this.labels);
 	}
 
 	@Override
@@ -543,13 +455,51 @@ public class GoogleGenAiChatOptions implements ToolCallingChatOptions, Structure
 				+ ", candidateCount=" + this.candidateCount + ", maxOutputTokens=" + this.maxOutputTokens + ", model='"
 				+ this.model + '\'' + ", responseMimeType='" + this.responseMimeType + '\'' + ", toolCallbacks="
 				+ this.toolCallbacks + ", toolNames=" + this.toolNames + ", googleSearchRetrieval="
-				+ this.googleSearchRetrieval + ", safetySettings=" + this.safetySettings + ", labels=" + this.labels
-				+ '}';
+				+ this.googleSearchRetrieval + ", includeServerSideToolInvocations="
+				+ this.includeServerSideToolInvocations + ", safetySettings=" + this.safetySettings + ", labels="
+				+ this.labels + '}';
 	}
 
 	@Override
 	public GoogleGenAiChatOptions copy() {
-		return fromOptions(this);
+		return mutate().build();
+	}
+
+	@Override
+	public Builder mutate() {
+		return GoogleGenAiChatOptions.builder()
+			// ChatOptions
+			.model(this.model)
+			.frequencyPenalty(this.frequencyPenalty)
+			.maxOutputTokens(this.maxOutputTokens) // alias for maxTokens
+			.presencePenalty(this.presencePenalty)
+			.stopSequences(this.stopSequences)
+			.temperature(this.temperature)
+			.topK(this.topK)
+			.topP(this.topP)
+			// ToolCallingChatOptions
+			.toolCallbacks(this.getToolCallbacks())
+			.toolNames(this.getToolNames())
+			.toolContext(this.getToolContext())
+			.internalToolExecutionEnabled(this.getInternalToolExecutionEnabled())
+			// StructuredOutputChatOptions
+			.responseMimeType(this.responseMimeType)
+			.outputSchema(this.getOutputSchema())
+			// GoogleGenAi Specific
+			.candidateCount(this.candidateCount)
+			.thinkingBudget(this.thinkingBudget)
+			.includeThoughts(this.includeThoughts)
+			.thinkingLevel(this.thinkingLevel)
+			.includeExtendedUsageMetadata(this.includeExtendedUsageMetadata)
+			.cachedContentName(this.cachedContentName)
+			.useCachedContent(this.useCachedContent)
+			.autoCacheThreshold(this.autoCacheThreshold)
+			.autoCacheTtl(this.autoCacheTtl)
+			.googleSearchRetrieval(this.googleSearchRetrieval)
+			.includeServerSideToolInvocations(this.includeServerSideToolInvocations)
+			.safetySettings(this.safetySettings)
+			.labels(this.labels)
+			.responseMimeType(this.responseMimeType);
 	}
 
 	public enum TransportType {
@@ -558,173 +508,221 @@ public class GoogleGenAiChatOptions implements ToolCallingChatOptions, Structure
 
 	}
 
-	public static final class Builder {
+	// public Builder class exposed to users. Avoids having to deal with noisy generic
+	// parameters.
+	@NullMarked // TODO: move at package level
+	public static class Builder extends AbstractBuilder<Builder> {
 
-		private GoogleGenAiChatOptions options = new GoogleGenAiChatOptions();
+	}
 
-		public Builder stopSequences(List<String> stopSequences) {
-			this.options.setStopSequences(stopSequences);
-			return this;
+	@NullMarked // TODO: move at package level
+	protected abstract static class AbstractBuilder<B extends AbstractBuilder<B>>
+			extends DefaultToolCallingChatOptions.Builder<B> implements StructuredOutputChatOptions.Builder<B> {
+
+		@Override
+		public B clone() {
+			B copy = super.clone();
+			if (!this.safetySettings.isEmpty()) {
+				copy.safetySettings = new ArrayList<>(this.safetySettings);
+			}
+			if (!this.labels.isEmpty()) {
+				copy.labels = new HashMap<>(this.labels);
+			}
+			return copy;
 		}
 
-		public Builder temperature(Double temperature) {
-			this.options.setTemperature(temperature);
-			return this;
+		protected @Nullable Integer candidateCount;
+
+		protected @Nullable String responseMimeType;
+
+		protected @Nullable String responseSchema;
+
+		protected @Nullable Integer thinkingBudget;
+
+		protected @Nullable Boolean includeThoughts;
+
+		protected @Nullable GoogleGenAiThinkingLevel thinkingLevel;
+
+		protected @Nullable Boolean includeExtendedUsageMetadata;
+
+		protected @Nullable String cachedContentName;
+
+		protected @Nullable Boolean useCachedContent;
+
+		protected @Nullable Integer autoCacheThreshold;
+
+		protected @Nullable Duration autoCacheTtl;
+
+		protected @Nullable Boolean googleSearchRetrieval;
+
+		protected @Nullable Boolean includeServerSideToolInvocations;
+
+		protected List<GoogleGenAiSafetySetting> safetySettings = new ArrayList<>();
+
+		protected Map<String, String> labels = new HashMap<>();
+
+		public B candidateCount(@Nullable Integer candidateCount) {
+			this.candidateCount = candidateCount;
+			return self();
 		}
 
-		public Builder topP(Double topP) {
-			this.options.setTopP(topP);
-			return this;
+		public B maxOutputTokens(@Nullable Integer maxOutputTokens) {
+			return this.maxTokens(maxOutputTokens);
 		}
 
-		public Builder topK(Integer topK) {
-			this.options.setTopK(topK);
-			return this;
-		}
-
-		public Builder frequencyPenalty(Double frequencyPenalty) {
-			this.options.setFrequencyPenalty(frequencyPenalty);
-			return this;
-		}
-
-		public Builder presencePenalty(Double presencePenalty) {
-			this.options.setPresencePenalty(presencePenalty);
-			return this;
-		}
-
-		public Builder candidateCount(Integer candidateCount) {
-			this.options.setCandidateCount(candidateCount);
-			return this;
-		}
-
-		public Builder maxOutputTokens(Integer maxOutputTokens) {
-			this.options.setMaxOutputTokens(maxOutputTokens);
-			return this;
-		}
-
-		public Builder model(String modelName) {
-			this.options.setModel(modelName);
-			return this;
-		}
-
-		public Builder model(ChatModel model) {
-			this.options.setModel(model.getValue());
-			return this;
-		}
-
-		public Builder responseMimeType(String mimeType) {
-			Assert.notNull(mimeType, "mimeType must not be null");
-			this.options.setResponseMimeType(mimeType);
-			return this;
-		}
-
-		public Builder responseSchema(String responseSchema) {
-			this.options.setResponseSchema(responseSchema);
-			return this;
-		}
-
-		public Builder outputSchema(String jsonSchema) {
-			this.options.setOutputSchema(jsonSchema);
-			return this;
-		}
-
-		public Builder toolCallbacks(List<ToolCallback> toolCallbacks) {
-			this.options.toolCallbacks = toolCallbacks;
-			return this;
-		}
-
-		public Builder toolCallbacks(ToolCallback... toolCallbacks) {
-			Assert.notNull(toolCallbacks, "toolCallbacks cannot be null");
-			this.options.toolCallbacks.addAll(Arrays.asList(toolCallbacks));
-			return this;
-		}
-
-		public Builder toolNames(Set<String> toolNames) {
-			Assert.notNull(toolNames, "Tool names must not be null");
-			this.options.toolNames = toolNames;
-			return this;
-		}
-
-		public Builder toolName(String toolName) {
-			Assert.hasText(toolName, "Tool name must not be empty");
-			this.options.toolNames.add(toolName);
-			return this;
-		}
-
-		public Builder googleSearchRetrieval(boolean googleSearch) {
-			this.options.googleSearchRetrieval = googleSearch;
-			return this;
-		}
-
-		public Builder safetySettings(List<GoogleGenAiSafetySetting> safetySettings) {
-			Assert.notNull(safetySettings, "safetySettings must not be null");
-			this.options.safetySettings = safetySettings;
-			return this;
-		}
-
-		public Builder internalToolExecutionEnabled(boolean internalToolExecutionEnabled) {
-			this.options.internalToolExecutionEnabled = internalToolExecutionEnabled;
-			return this;
-		}
-
-		public Builder toolContext(Map<String, Object> toolContext) {
-			if (this.options.toolContext == null) {
-				this.options.toolContext = toolContext;
+		public B model(@Nullable ChatModel model) {
+			if (model == null) {
+				return this.model((String) null);
 			}
 			else {
-				this.options.toolContext.putAll(toolContext);
+				return this.model(model.getValue());
 			}
-			return this;
 		}
 
-		public Builder thinkingBudget(Integer thinkingBudget) {
-			this.options.setThinkingBudget(thinkingBudget);
-			return this;
+		public B responseMimeType(@Nullable String mimeType) {
+			this.responseMimeType = mimeType;
+			return self();
 		}
 
-		public Builder includeThoughts(Boolean includeThoughts) {
-			this.options.setIncludeThoughts(includeThoughts);
-			return this;
+		public B responseSchema(@Nullable String responseSchema) {
+			this.responseSchema = responseSchema;
+			return self();
 		}
 
-		public Builder thinkingLevel(GoogleGenAiThinkingLevel thinkingLevel) {
-			this.options.setThinkingLevel(thinkingLevel);
-			return this;
+		public B outputSchema(@Nullable String jsonSchema) {
+			this.responseSchema = jsonSchema;
+			if (jsonSchema != null) {
+				this.responseMimeType = "application/json";
+			}
+			else {
+				this.responseMimeType = null;
+			}
+			return self();
 		}
 
-		public Builder includeExtendedUsageMetadata(Boolean includeExtendedUsageMetadata) {
-			this.options.setIncludeExtendedUsageMetadata(includeExtendedUsageMetadata);
-			return this;
+		public B googleSearchRetrieval(@Nullable Boolean googleSearch) {
+			this.googleSearchRetrieval = googleSearch;
+			return self();
 		}
 
-		public Builder labels(Map<String, String> labels) {
+		public B includeServerSideToolInvocations(@Nullable Boolean includeServerSideToolInvocations) {
+			this.includeServerSideToolInvocations = includeServerSideToolInvocations;
+			return self();
+		}
+
+		public B safetySettings(List<GoogleGenAiSafetySetting> safetySettings) {
+			Assert.notNull(safetySettings, "safetySettings must not be null");
+			this.safetySettings = safetySettings;
+			return self();
+		}
+
+		public B thinkingBudget(@Nullable Integer thinkingBudget) {
+			this.thinkingBudget = thinkingBudget;
+			return self();
+		}
+
+		public B includeThoughts(@Nullable Boolean includeThoughts) {
+			this.includeThoughts = includeThoughts;
+			return self();
+		}
+
+		public B thinkingLevel(@Nullable GoogleGenAiThinkingLevel thinkingLevel) {
+			this.thinkingLevel = thinkingLevel;
+			return self();
+		}
+
+		public B includeExtendedUsageMetadata(@Nullable Boolean includeExtendedUsageMetadata) {
+			this.includeExtendedUsageMetadata = includeExtendedUsageMetadata;
+			return self();
+		}
+
+		public B labels(Map<String, String> labels) {
 			Assert.notNull(labels, "labels must not be null");
-			this.options.labels = labels;
-			return this;
+			this.labels = labels;
+			return self();
 		}
 
-		public Builder cachedContentName(String cachedContentName) {
-			this.options.setCachedContentName(cachedContentName);
-			return this;
+		public B cachedContentName(@Nullable String cachedContentName) {
+			this.cachedContentName = cachedContentName;
+			return self();
 		}
 
-		public Builder useCachedContent(Boolean useCachedContent) {
-			this.options.setUseCachedContent(useCachedContent);
-			return this;
+		public B useCachedContent(@Nullable Boolean useCachedContent) {
+			this.useCachedContent = useCachedContent;
+			return self();
 		}
 
-		public Builder autoCacheThreshold(Integer autoCacheThreshold) {
-			this.options.setAutoCacheThreshold(autoCacheThreshold);
-			return this;
+		public B autoCacheThreshold(@Nullable Integer autoCacheThreshold) {
+			this.autoCacheThreshold = autoCacheThreshold;
+			return self();
 		}
 
-		public Builder autoCacheTtl(java.time.Duration autoCacheTtl) {
-			this.options.setAutoCacheTtl(autoCacheTtl);
-			return this;
+		public B autoCacheTtl(@Nullable Duration autoCacheTtl) {
+			this.autoCacheTtl = autoCacheTtl;
+			return self();
 		}
 
+		public B combineWith(ChatOptions.Builder<?> other) {
+			super.combineWith(other);
+			if (other instanceof AbstractBuilder<?> that) {
+				if (that.candidateCount != null) {
+					this.candidateCount = that.candidateCount;
+				}
+				if (that.responseMimeType != null) {
+					this.responseMimeType = that.responseMimeType;
+				}
+				if (that.responseSchema != null) {
+					this.responseSchema = that.responseSchema;
+				}
+				if (that.thinkingBudget != null) {
+					this.thinkingBudget = that.thinkingBudget;
+				}
+				if (that.includeThoughts != null) {
+					this.includeThoughts = that.includeThoughts;
+				}
+				if (that.thinkingLevel != null) {
+					this.thinkingLevel = that.thinkingLevel;
+				}
+				if (that.includeExtendedUsageMetadata != null) {
+					this.includeExtendedUsageMetadata = that.includeExtendedUsageMetadata;
+				}
+				if (that.cachedContentName != null) {
+					this.cachedContentName = that.cachedContentName;
+				}
+				if (that.useCachedContent != null) {
+					this.useCachedContent = that.useCachedContent;
+				}
+				if (that.autoCacheThreshold != null) {
+					this.autoCacheThreshold = that.autoCacheThreshold;
+				}
+				if (that.autoCacheTtl != null) {
+					this.autoCacheTtl = that.autoCacheTtl;
+				}
+				if (that.googleSearchRetrieval != null) {
+					this.googleSearchRetrieval = that.googleSearchRetrieval;
+				}
+				if (that.includeServerSideToolInvocations != null) {
+					this.includeServerSideToolInvocations = that.includeServerSideToolInvocations;
+				}
+				if (that.safetySettings != null) {
+					this.safetySettings = that.safetySettings;
+				}
+				if (that.labels != null) {
+					this.labels = that.labels;
+				}
+			}
+			return self();
+		}
+
+		@Override
 		public GoogleGenAiChatOptions build() {
-			return this.options;
+			return new GoogleGenAiChatOptions(this.model, this.frequencyPenalty, this.maxTokens, this.presencePenalty,
+					this.stopSequences, this.temperature, this.topK, this.topP, this.internalToolExecutionEnabled,
+					this.toolCallbacks, this.toolNames, this.toolContext, this.candidateCount, this.responseMimeType,
+					this.responseSchema, this.thinkingBudget, this.includeThoughts, this.thinkingLevel,
+					this.includeExtendedUsageMetadata, this.cachedContentName, this.useCachedContent,
+					this.autoCacheThreshold, this.autoCacheTtl, this.googleSearchRetrieval,
+					this.includeServerSideToolInvocations, this.safetySettings, this.labels);
 		}
 
 	}

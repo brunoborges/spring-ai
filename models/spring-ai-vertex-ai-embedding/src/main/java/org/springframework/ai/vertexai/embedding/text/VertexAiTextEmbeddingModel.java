@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -133,7 +133,11 @@ public class VertexAiTextEmbeddingModel extends AbstractEmbeddingModel {
 				try (PredictionServiceClient client = createPredictionServiceClient()) {
 
 					EmbeddingOptions options = embeddingRequest.getOptions();
-					EndpointName endpointName = this.connectionDetails.getEndpointName(options.getModel());
+					Assert.state(options instanceof VertexAiTextEmbeddingOptions,
+							"options must be an instance of VertexAiTextEmbeddingOptions");
+					String model = options.getModel();
+					Assert.state(model != null, "model must not be null");
+					EndpointName endpointName = this.connectionDetails.getEndpointName(model);
 
 					PredictRequest.Builder predictRequestBuilder = getPredictRequestBuilder(request, endpointName,
 							(VertexAiTextEmbeddingOptions) options);
@@ -157,7 +161,7 @@ public class VertexAiTextEmbeddingModel extends AbstractEmbeddingModel {
 						embeddingList.add(new Embedding(vectorValues, index++));
 					}
 					EmbeddingResponse response = new EmbeddingResponse(embeddingList,
-							generateResponseMetadata(options.getModel(), totalTokenCount));
+							generateResponseMetadata(model, totalTokenCount));
 
 					observationContext.setResponse(response);
 
@@ -167,23 +171,37 @@ public class VertexAiTextEmbeddingModel extends AbstractEmbeddingModel {
 	}
 
 	EmbeddingRequest buildEmbeddingRequest(EmbeddingRequest embeddingRequest) {
-		// Process runtime options
-		VertexAiTextEmbeddingOptions runtimeOptions = null;
-		if (embeddingRequest.getOptions() != null) {
-			runtimeOptions = ModelOptionsUtils.copyToTarget(embeddingRequest.getOptions(), EmbeddingOptions.class,
-					VertexAiTextEmbeddingOptions.class);
+		EmbeddingOptions requestOptions = embeddingRequest.getOptions();
+		VertexAiTextEmbeddingOptions options = this.defaultOptions;
+
+		if (requestOptions != null) {
+			VertexAiTextEmbeddingOptions.Builder builder = VertexAiTextEmbeddingOptions.builder()
+				.model(ModelOptionsUtils.mergeOption(requestOptions.getModel(), this.defaultOptions.getModel()))
+				.dimensions(ModelOptionsUtils.mergeOption(requestOptions.getDimensions(),
+						this.defaultOptions.getDimensions()));
+
+			if (requestOptions instanceof VertexAiTextEmbeddingOptions vertexOptions) {
+				builder
+					.taskType(ModelOptionsUtils.mergeOption(vertexOptions.getTaskType(),
+							this.defaultOptions.getTaskType()))
+					.title(ModelOptionsUtils.mergeOption(vertexOptions.getTitle(), this.defaultOptions.getTitle()))
+					.autoTruncate(ModelOptionsUtils.mergeOption(vertexOptions.getAutoTruncate(),
+							this.defaultOptions.getAutoTruncate()));
+			}
+			else {
+				builder.taskType(this.defaultOptions.getTaskType())
+					.title(this.defaultOptions.getTitle())
+					.autoTruncate(this.defaultOptions.getAutoTruncate());
+			}
+			options = builder.build();
 		}
 
-		// Define request options by merging runtime options and default options
-		VertexAiTextEmbeddingOptions requestOptions = ModelOptionsUtils.merge(runtimeOptions, this.defaultOptions,
-				VertexAiTextEmbeddingOptions.class);
-
 		// Validate request options
-		if (!StringUtils.hasText(requestOptions.getModel())) {
+		if (!StringUtils.hasText(options.getModel())) {
 			throw new IllegalArgumentException("model cannot be null or empty");
 		}
 
-		return new EmbeddingRequest(embeddingRequest.getInstructions(), requestOptions);
+		return new EmbeddingRequest(embeddingRequest.getInstructions(), options);
 	}
 
 	protected PredictRequest.Builder getPredictRequestBuilder(EmbeddingRequest request, EndpointName endpointName,
@@ -202,10 +220,12 @@ public class VertexAiTextEmbeddingModel extends AbstractEmbeddingModel {
 
 		predictRequestBuilder.setParameters(VertexAiEmbeddingUtils.valueOf(parametersBuilder.build()));
 
+		VertexAiTextEmbeddingOptions.TaskType taskType = finalOptions.getTaskType();
+		Assert.state(taskType != null, "taskType must not be null");
 		for (int i = 0; i < request.getInstructions().size(); i++) {
 
 			TextInstanceBuilder instanceBuilder = TextInstanceBuilder.of(request.getInstructions().get(i))
-				.taskType(finalOptions.getTaskType().name());
+				.taskType(taskType.name());
 			if (StringUtils.hasText(finalOptions.getTitle())) {
 				instanceBuilder.title(finalOptions.getTitle());
 			}

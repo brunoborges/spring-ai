@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,9 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 
+import org.springframework.ai.google.genai.GoogleGenAiChatOptions.Builder;
 import org.springframework.ai.google.genai.common.GoogleGenAiThinkingLevel;
+import org.springframework.ai.test.options.AbstractChatOptionsTests;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -29,19 +31,17 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * @author Dan Dobrin
  */
-public class GoogleGenAiChatOptionsTest {
+public class GoogleGenAiChatOptionsTest extends AbstractChatOptionsTests<GoogleGenAiChatOptions, Builder> {
 
-	@Test
-	public void testThinkingBudgetGetterSetter() {
-		GoogleGenAiChatOptions options = new GoogleGenAiChatOptions();
+	@Override
+	protected Class<GoogleGenAiChatOptions> getConcreteOptionsClass() {
+		return GoogleGenAiChatOptions.class;
+	}
 
-		assertThat(options.getThinkingBudget()).isNull();
-
-		options.setThinkingBudget(12853);
-		assertThat(options.getThinkingBudget()).isEqualTo(12853);
-
-		options.setThinkingBudget(null);
-		assertThat(options.getThinkingBudget()).isNull();
+	@Override
+	@SuppressWarnings("unchecked")
+	protected Builder readyToBuildBuilder() {
+		return GoogleGenAiChatOptions.builder();
 	}
 
 	@Test
@@ -170,22 +170,6 @@ public class GoogleGenAiChatOptionsTest {
 	}
 
 	@Test
-	public void testThinkingLevelGetterSetter() {
-		GoogleGenAiChatOptions options = new GoogleGenAiChatOptions();
-
-		assertThat(options.getThinkingLevel()).isNull();
-
-		options.setThinkingLevel(GoogleGenAiThinkingLevel.HIGH);
-		assertThat(options.getThinkingLevel()).isEqualTo(GoogleGenAiThinkingLevel.HIGH);
-
-		options.setThinkingLevel(GoogleGenAiThinkingLevel.LOW);
-		assertThat(options.getThinkingLevel()).isEqualTo(GoogleGenAiThinkingLevel.LOW);
-
-		options.setThinkingLevel(null);
-		assertThat(options.getThinkingLevel()).isNull();
-	}
-
-	@Test
 	public void testThinkingLevelWithBuilder() {
 		GoogleGenAiChatOptions options = GoogleGenAiChatOptions.builder()
 			.model("test-model")
@@ -279,6 +263,76 @@ public class GoogleGenAiChatOptionsTest {
 				.build();
 			assertThat(options.getThinkingLevel()).isEqualTo(level);
 		}
+	}
+
+	@Test
+	public void testIncludeServerSideToolInvocationsWithBuilder() {
+		GoogleGenAiChatOptions options = GoogleGenAiChatOptions.builder()
+			.model("test-model")
+			.includeServerSideToolInvocations(true)
+			.build();
+
+		assertThat(options.getModel()).isEqualTo("test-model");
+		assertThat(options.getIncludeServerSideToolInvocations()).isTrue();
+	}
+
+	@Test
+	public void testFromOptionsWithIncludeServerSideToolInvocations() {
+		GoogleGenAiChatOptions original = GoogleGenAiChatOptions.builder()
+			.model("test-model")
+			.includeServerSideToolInvocations(true)
+			.build();
+
+		GoogleGenAiChatOptions copy = GoogleGenAiChatOptions.fromOptions(original);
+
+		assertThat(copy.getIncludeServerSideToolInvocations()).isTrue();
+		assertThat(copy).isNotSameAs(original);
+	}
+
+	@Test
+	public void testCopyWithIncludeServerSideToolInvocations() {
+		GoogleGenAiChatOptions original = GoogleGenAiChatOptions.builder()
+			.model("test-model")
+			.includeServerSideToolInvocations(true)
+			.build();
+
+		GoogleGenAiChatOptions copy = original.copy();
+
+		assertThat(copy.getIncludeServerSideToolInvocations()).isTrue();
+		assertThat(copy).isNotSameAs(original);
+	}
+
+	@Test
+	public void testEqualsAndHashCodeWithIncludeServerSideToolInvocations() {
+		GoogleGenAiChatOptions options1 = GoogleGenAiChatOptions.builder()
+			.model("test-model")
+			.includeServerSideToolInvocations(true)
+			.build();
+
+		GoogleGenAiChatOptions options2 = GoogleGenAiChatOptions.builder()
+			.model("test-model")
+			.includeServerSideToolInvocations(true)
+			.build();
+
+		GoogleGenAiChatOptions options3 = GoogleGenAiChatOptions.builder()
+			.model("test-model")
+			.includeServerSideToolInvocations(false)
+			.build();
+
+		assertThat(options1).isEqualTo(options2);
+		assertThat(options1.hashCode()).isEqualTo(options2.hashCode());
+		assertThat(options1).isNotEqualTo(options3);
+	}
+
+	@Test
+	public void testToStringWithIncludeServerSideToolInvocations() {
+		GoogleGenAiChatOptions options = GoogleGenAiChatOptions.builder()
+			.model("test-model")
+			.includeServerSideToolInvocations(true)
+			.build();
+
+		String toString = options.toString();
+		assertThat(toString).contains("includeServerSideToolInvocations=true");
 	}
 
 }

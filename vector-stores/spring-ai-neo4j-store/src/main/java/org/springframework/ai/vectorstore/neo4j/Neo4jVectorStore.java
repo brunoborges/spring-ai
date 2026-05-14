@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,9 @@ package org.springframework.ai.vectorstore.neo4j;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.IntStream;
 
 import org.neo4j.cypherdsl.support.schema_name.SchemaNames;
 import org.neo4j.driver.Driver;
@@ -37,6 +39,7 @@ import org.springframework.ai.observation.conventions.VectorStoreSimilarityMetri
 import org.springframework.ai.vectorstore.AbstractVectorStoreBuilder;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.filter.Filter;
+import org.springframework.ai.vectorstore.filter.FilterExpressionConverter;
 import org.springframework.ai.vectorstore.neo4j.filter.Neo4jVectorFilterExpressionConverter;
 import org.springframework.ai.vectorstore.observation.AbstractObservationVectorStore;
 import org.springframework.ai.vectorstore.observation.VectorStoreObservationContext;
@@ -130,6 +133,7 @@ import org.springframework.util.StringUtils;
  * @author Thomas Vitale
  * @author Soby Chacko
  * @author Jihoon Kim
+ * @author chabinhwang
  * @since 1.0.0
  */
 public class Neo4jVectorStore extends AbstractObservationVectorStore implements InitializingBean {
@@ -176,9 +180,9 @@ public class Neo4jVectorStore extends AbstractObservationVectorStore implements 
 
 	private final String constraintName;
 
-	private final Neo4jVectorFilterExpressionConverter filterExpressionConverter = new Neo4jVectorFilterExpressionConverter();
-
 	private final boolean initializeSchema;
+
+	private final FilterExpressionConverter filterExpressionConverter;
 
 	protected Neo4jVectorStore(Builder builder) {
 		super(builder);
@@ -197,6 +201,7 @@ public class Neo4jVectorStore extends AbstractObservationVectorStore implements 
 		this.textProperty = SchemaNames.sanitize(builder.textProperty).orElseThrow();
 		this.constraintName = SchemaNames.sanitize(builder.constraintName).orElseThrow();
 		this.initializeSchema = builder.initializeSchema;
+		this.filterExpressionConverter = builder.filterExpressionConverter;
 	}
 
 	@Override
@@ -205,11 +210,11 @@ public class Neo4jVectorStore extends AbstractObservationVectorStore implements 
 		List<float[]> embeddings = this.embeddingModel.embed(documents, EmbeddingOptions.builder().build(),
 				this.batchingStrategy);
 
-		var rows = documents.stream()
-			.map(document -> documentToRecord(document, embeddings.get(documents.indexOf(document))))
+		var rows = IntStream.range(0, documents.size())
+			.mapToObj(i -> documentToRecord(documents.get(i), embeddings.get(i)))
 			.toList();
 
-		try (var session = this.driver.session()) {
+		try (var session = this.driver.session(this.sessionConfig)) {
 			var statement = """
 						UNWIND $rows AS row
 						MERGE (u:%s {%2$s: row.id})
@@ -273,6 +278,7 @@ public class Neo4jVectorStore extends AbstractObservationVectorStore implements 
 		try (var session = this.driver.session(this.sessionConfig)) {
 			StringBuilder condition = new StringBuilder("score >= $threshold");
 			if (request.hasFilterExpression()) {
+				Assert.state(request.getFilterExpression() != null, "filter expression can't be null");
 				condition.append(" AND ")
 					.append(this.filterExpressionConverter.convertExpression(request.getFilterExpression()));
 			}
@@ -326,7 +332,7 @@ public class Neo4jVectorStore extends AbstractObservationVectorStore implements 
 		row.put("id", document.getId());
 
 		var properties = new HashMap<String, Object>();
-		properties.put(this.textProperty, document.getText());
+		properties.put(this.textProperty, Objects.requireNonNullElse(document.getText(), ""));
 
 		document.getMetadata().forEach((k, v) -> properties.put("metadata." + k, Values.value(v)));
 		row.put("properties", properties);
@@ -419,6 +425,8 @@ public class Neo4jVectorStore extends AbstractObservationVectorStore implements 
 		private String constraintName = DEFAULT_CONSTRAINT_NAME;
 
 		private boolean initializeSchema = false;
+
+		private FilterExpressionConverter filterExpressionConverter = new Neo4jVectorFilterExpressionConverter();
 
 		private Builder(Driver driver, EmbeddingModel embeddingModel) {
 			super(embeddingModel);
@@ -552,6 +560,19 @@ public class Neo4jVectorStore extends AbstractObservationVectorStore implements 
 		 */
 		public Builder initializeSchema(boolean initializeSchema) {
 			this.initializeSchema = initializeSchema;
+			return this;
+		}
+
+		/**
+		 * Sets the {@link FilterExpressionConverter} to use when converting filter
+		 * expressions to Neo4j Cypher queries. Defaults to
+		 * {@link Neo4jVectorFilterExpressionConverter}.
+		 * @param filterExpressionConverter the filter expression converter to use
+		 * @return the builder instance
+		 */
+		public Builder filterExpressionConverter(FilterExpressionConverter filterExpressionConverter) {
+			Assert.notNull(filterExpressionConverter, "FilterExpressionConverter must not be null");
+			this.filterExpressionConverter = filterExpressionConverter;
 			return this;
 		}
 

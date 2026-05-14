@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2024 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,11 +34,11 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * @author Utkarsh Srivastava
  * @author Christian Tzolov
+ * @author Sebastien Deleuze
  */
-@SpringBootTest(properties = { "spring.ai.postgresml.embedding.options.metadata-mode=all",
-		"spring.ai.postgresml.embedding.options.kwargs.key1=value1",
-		"spring.ai.postgresml.embedding.options.kwargs.key2=value2",
-		"spring.ai.postgresml.embedding.options.transformer=abc123" })
+@SpringBootTest(properties = { "spring.ai.postgresml.embedding.metadata-mode=all",
+		"spring.ai.postgresml.embedding.kwargs.key1=value1", "spring.ai.postgresml.embedding.kwargs.key2=value2",
+		"spring.ai.postgresml.embedding.transformer=abc123" })
 class PostgresMlEmbeddingPropertiesTests {
 
 	@Autowired
@@ -47,12 +47,10 @@ class PostgresMlEmbeddingPropertiesTests {
 	@Test
 	void postgresMlPropertiesAreCorrect() {
 		assertThat(this.postgresMlProperties).isNotNull();
-		assertThat(this.postgresMlProperties.getOptions().getTransformer()).isEqualTo("abc123");
-		assertThat(this.postgresMlProperties.getOptions().getVectorType())
-			.isEqualTo(PostgresMlEmbeddingModel.VectorType.PG_ARRAY);
-		assertThat(this.postgresMlProperties.getOptions().getKwargs())
-			.isEqualTo(Map.of("key1", "value1", "key2", "value2"));
-		assertThat(this.postgresMlProperties.getOptions().getMetadataMode()).isEqualTo(MetadataMode.ALL);
+		assertThat(this.postgresMlProperties.getTransformer()).isEqualTo("abc123");
+		assertThat(this.postgresMlProperties.getVectorType()).isEqualTo(PostgresMlEmbeddingModel.VectorType.PG_ARRAY);
+		assertThat(this.postgresMlProperties.getKwargs()).isEqualTo(Map.of("key1", "value1", "key2", "value2"));
+		assertThat(this.postgresMlProperties.getMetadataMode()).isEqualTo(MetadataMode.ALL);
 	}
 
 	@SpringBootConfiguration

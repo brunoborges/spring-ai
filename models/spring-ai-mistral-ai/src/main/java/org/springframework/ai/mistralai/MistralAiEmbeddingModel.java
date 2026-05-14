@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,8 +18,10 @@ package org.springframework.ai.mistralai;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import io.micrometer.observation.ObservationRegistry;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,6 +52,7 @@ import org.springframework.util.Assert;
  * @author Thomas Vitale
  * @author Jason Smith
  * @author Nicolas Krier
+ * @author Soby Chacko
  * @since 1.0.0
  */
 public class MistralAiEmbeddingModel extends AbstractEmbeddingModel {
@@ -117,8 +120,10 @@ public class MistralAiEmbeddingModel extends AbstractEmbeddingModel {
 			.observation(this.observationConvention, DEFAULT_OBSERVATION_CONVENTION, () -> observationContext,
 					this.observationRegistry)
 			.observe(() -> {
-				MistralAiApi.EmbeddingList<MistralAiApi.Embedding> apiEmbeddingResponse = RetryUtils
-					.execute(this.retryTemplate, () -> this.mistralAiApi.embeddings(apiRequest).getBody());
+				var embeddingResponseEntity = RetryUtils.execute(this.retryTemplate,
+						() -> this.mistralAiApi.embeddings(apiRequest));
+				MistralAiApi.EmbeddingList<MistralAiApi.Embedding> apiEmbeddingResponse = embeddingResponseEntity
+					.getBody();
 
 				if (apiEmbeddingResponse == null) {
 					logger.warn("No embeddings returned for request: {}", request);
@@ -142,18 +147,24 @@ public class MistralAiEmbeddingModel extends AbstractEmbeddingModel {
 	}
 
 	private EmbeddingRequest buildEmbeddingRequest(EmbeddingRequest embeddingRequest) {
-		// Process runtime options
-		MistralAiEmbeddingOptions runtimeOptions = null;
-		if (embeddingRequest.getOptions() != null) {
-			runtimeOptions = ModelOptionsUtils.copyToTarget(embeddingRequest.getOptions(), EmbeddingOptions.class,
-					MistralAiEmbeddingOptions.class);
+		EmbeddingOptions requestOptions = embeddingRequest.getOptions();
+		MistralAiEmbeddingOptions mergedOptions = this.defaultOptions;
+
+		if (requestOptions != null) {
+			MistralAiEmbeddingOptions.Builder builder = MistralAiEmbeddingOptions.builder()
+				.withModel(ModelOptionsUtils.mergeOption(requestOptions.getModel(), this.defaultOptions.getModel()));
+
+			if (requestOptions instanceof MistralAiEmbeddingOptions mistralOptions) {
+				builder.withEncodingFormat(ModelOptionsUtils.mergeOption(mistralOptions.getEncodingFormat(),
+						this.defaultOptions.getEncodingFormat()));
+			}
+			else {
+				builder.withEncodingFormat(this.defaultOptions.getEncodingFormat());
+			}
+			mergedOptions = builder.build();
 		}
 
-		// Define request options by merging runtime options and default options
-		MistralAiEmbeddingOptions requestOptions = ModelOptionsUtils.merge(runtimeOptions, this.defaultOptions,
-				MistralAiEmbeddingOptions.class);
-
-		return new EmbeddingRequest(embeddingRequest.getInstructions(), requestOptions);
+		return new EmbeddingRequest(embeddingRequest.getInstructions(), mergedOptions);
 	}
 
 	private DefaultUsage getDefaultUsage(MistralAiApi.Usage usage) {
@@ -161,9 +172,16 @@ public class MistralAiEmbeddingModel extends AbstractEmbeddingModel {
 	}
 
 	private MistralAiApi.EmbeddingRequest<List<String>> createRequest(EmbeddingRequest request) {
-		MistralAiEmbeddingOptions requestOptions = (MistralAiEmbeddingOptions) request.getOptions();
+		MistralAiEmbeddingOptions requestOptions = (MistralAiEmbeddingOptions) Objects
+			.requireNonNull(request.getOptions());
 		return new MistralAiApi.EmbeddingRequest<>(request.getInstructions(), requestOptions.getModel(),
 				requestOptions.getEncodingFormat());
+	}
+
+	@Override
+	public String getEmbeddingContent(Document document) {
+		Assert.notNull(document, "Document must not be null");
+		return document.getFormattedContent(this.metadataMode);
 	}
 
 	@Override
@@ -192,7 +210,7 @@ public class MistralAiEmbeddingModel extends AbstractEmbeddingModel {
 
 	public static final class Builder {
 
-		private MistralAiApi mistralAiApi;
+		private @Nullable MistralAiApi mistralAiApi;
 
 		private MetadataMode metadataMode = MetadataMode.EMBED;
 
@@ -230,6 +248,7 @@ public class MistralAiEmbeddingModel extends AbstractEmbeddingModel {
 		}
 
 		public MistralAiEmbeddingModel build() {
+			Assert.state(this.mistralAiApi != null, "MistralAiApi must not be null");
 			return new MistralAiEmbeddingModel(this.mistralAiApi, this.metadataMode, this.options, this.retryTemplate,
 					this.observationRegistry);
 		}

@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2024 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import org.springframework.ai.model.ollama.autoconfigure.BaseOllamaIT
 import org.springframework.ai.model.ollama.autoconfigure.OllamaChatAutoConfiguration
 import org.springframework.ai.model.tool.ToolCallingChatOptions
 import org.springframework.ai.ollama.OllamaChatModel
+import org.springframework.ai.ollama.api.OllamaChatOptions
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -50,9 +51,9 @@ class ToolCallbackKotlinIT : BaseOllamaIT() {
 	private val contextRunner = ApplicationContextRunner()
 		.withPropertyValues(
 			"spring.ai.ollama.baseUrl=${getBaseUrl()}",
-			"spring.ai.ollama.chat.options.model=$MODEL_NAME",
-			"spring.ai.ollama.chat.options.temperature=0.5",
-			"spring.ai.ollama.chat.options.topK=10"
+			"spring.ai.ollama.chat.model=$MODEL_NAME",
+			"spring.ai.ollama.chat.temperature=0.5",
+			"spring.ai.ollama.chat.topK=10"
 		)
 		.withConfiguration(ollamaAutoConfig(OllamaChatAutoConfiguration::class.java))
 		.withUserConfiguration(Config::class.java)
@@ -67,7 +68,7 @@ class ToolCallbackKotlinIT : BaseOllamaIT() {
 				"What are the weather conditions in San Francisco, Tokyo, and Paris? Find the temperature in Celsius for each of the three locations."
 			)
 
-			val functionOptions = ToolCallingChatOptions.builder().toolNames("weatherInfo").build()
+			val functionOptions = OllamaChatOptions.builder().model(MODEL_NAME).toolNames("weatherInfo").build()
 
 			val response = chatModel
 				.call(Prompt(listOf(userMessage), functionOptions))
@@ -89,7 +90,7 @@ class ToolCallbackKotlinIT : BaseOllamaIT() {
 				"What are the weather conditions in San Francisco, Tokyo, and Paris? Find the temperature in Celsius for each of the three locations."
 			)
 
-			val functionOptions = ToolCallingChatOptions.builder().toolNames("weatherInfo").build()
+			val functionOptions = OllamaChatOptions.builder().model(MODEL_NAME).toolNames("weatherInfo").build()
 
 			val response = chatModel.call(Prompt(listOf(userMessage), functionOptions));
 			val output = response.getResult()!!.output.text
@@ -103,7 +104,7 @@ class ToolCallbackKotlinIT : BaseOllamaIT() {
 	open class Config {
 
 		@Bean
-		@Description("Find the weather conditions, forecasts, and temperatures for a location, like a city or state.")
+		@Description("Find the weather conditions, forecasts, and temperatures for a location, like a city or state, represented by its geographical coordinates.")
 		open fun weatherInfo(): Function1<KotlinRequest, KotlinResponse> {
 			return MockKotlinWeatherService()
 		}

@@ -71,8 +71,13 @@ To clone it you have to either:
 
 ## Building
 
-The project targets and build artifacts compatible with Java 17+, but requires JDK 21
-to build. This is enforced by the maven enforcer plugin.
+The project targets and builds artifacts compatible with Java 17+, and requires a JDK with support for the [`-XDaddTypeAnnotationsToSymbol` javac argument](https://bugs.openjdk.org/browse/JDK-8373586), like Liberica 17.0.19+, for nullability checks.
+
+The recommended JDK is specified in the `.sdkmanrc` file, which can be installed and configured with the [SDKMAN!](https://sdkman.io/) tool:
+ - `sdk env install` to install the related JDK locally
+ - `sdk env` to use the related JDK
+
+**NOTE:** Building Spring AI requires components that depend on your specific CPU architecture (PyTorch for example). MacOS can seamlessly run x86 Java applications on ARM processors using Rosetta, but this will fail when building this project because it tries to download architecture-specific native dependencies. (Note: this is only an issue for building the project, not for consuming the libraries). If you are unsure if you have the correct JDK distribution for your CPU, run the command `java -XshowSettings:properties -version 2>&1 | grep os.arch` from a fresh terminal to validate that it matches your machine.
 
 To build with running unit tests
 
@@ -90,11 +95,11 @@ Note that you should set API key environment variables for OpenAI or other model
 
 To run a specific integration test allowing for up to two attempts to succeed.  This is useful when a hosted service is not reliable or times out.
 ```shell
-./mvnw -pl vector-stores/spring-ai-pgvector-store -Pintegration-tests -Dfailsafe.rerunFailingTestsCount=2 -Dit.test=PgVectorStoreIT verify
+./mvnw -pl vector-stores/spring-ai-pgvector-store -am -Pintegration-tests -Dfailsafe.failIfNoSpecifiedTests=false -Dfailsafe.rerunFailingTestsCount=2 -Dit.test=PgVectorStoreIT verify
 ```
 
 ### Integration Tests
-There are many integration tests ,so it often isn't realistic to run them all at once.
+There are many integration tests, so it often isn't realistic to run them all at once.
 
 A quick pass through the most important pathways that runs integration tests for
 
@@ -110,7 +115,7 @@ A full integration test is done twice a day in the [Spring AI Integration Test R
 One way to run integration tests on part of the code is to first do a quick compile and install of the project
 
 ```shell
-./mvnw spring-javaformat:apply clean install -DskipTests -Dmaven.javadoc.skip=true
+./mvnw clean install -DskipTests -Dmaven.javadoc.skip=true
 ```
 Then run the integration test for a specific module using the `-pl` option
 
@@ -129,10 +134,9 @@ The docs are then in the directory `spring-ai-docs/target/antora/site/index.html
 
 ### Formatting the Source Code
 
-To reformat using the [java-format plugin](https://github.com/spring-io/spring-javaformat)
-```shell
-./mvnw spring-javaformat:apply
-```
+The code is formatted using the [java-format plugin](https://github.com/spring-io/spring-javaformat) as part of the build. Correct
+formatting is enforced by CI.
+
 ### Updating License Headers
 
 To update the year on license headers using the [license-maven-plugin](https://oss.carbou.me/license-maven-plugin/#goals)
@@ -143,14 +147,7 @@ To update the year on license headers using the [license-maven-plugin](https://o
 
 To check javadocs using the [javadoc:javadoc](https://maven.apache.org/plugins/maven-javadoc-plugin/)
 ```shell
-./mvnw javadoc:javadoc -Pjavadoc
-```
-### Enabling Checkstyle
-
-Checkstyles are currently disabled, but you can enable them by doing the following:
-
-```shell
-./mvnw clean package -DskipTests -Ddisable.checks=false
+./mvnw javadoc:javadoc
 ```
 
 #### Source Code Style
@@ -160,6 +157,11 @@ The wiki pages
 [Code Style](https://github.com/spring-projects/spring-framework/wiki/Code-Style) and
 [IntelliJ IDEA Editor Settings](https://github.com/spring-projects/spring-framework/wiki/IntelliJ-IDEA-Editor-Settings)
 define the source file coding standards we use along with some IDEA editor settings we customize.
+
+Run checkstyle manually:
+```shell
+./mvnw process-sources -P checkstyle-check
+```
 
 ## Contributing
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,6 +33,7 @@ import org.springframework.ai.chat.client.advisor.api.BaseChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.api.StreamAdvisorChain;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.Message;
+import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.util.Assert;
 
 /**
@@ -47,19 +48,14 @@ public final class MessageChatMemoryAdvisor implements BaseChatMemoryAdvisor {
 
 	private final ChatMemory chatMemory;
 
-	private final String defaultConversationId;
-
 	private final int order;
 
 	private final Scheduler scheduler;
 
-	private MessageChatMemoryAdvisor(ChatMemory chatMemory, String defaultConversationId, int order,
-			Scheduler scheduler) {
+	private MessageChatMemoryAdvisor(ChatMemory chatMemory, int order, Scheduler scheduler) {
 		Assert.notNull(chatMemory, "chatMemory cannot be null");
-		Assert.hasText(defaultConversationId, "defaultConversationId cannot be null or empty");
 		Assert.notNull(scheduler, "scheduler cannot be null");
 		this.chatMemory = chatMemory;
-		this.defaultConversationId = defaultConversationId;
 		this.order = order;
 		this.scheduler = scheduler;
 	}
@@ -76,7 +72,7 @@ public final class MessageChatMemoryAdvisor implements BaseChatMemoryAdvisor {
 
 	@Override
 	public ChatClientRequest before(ChatClientRequest chatClientRequest, AdvisorChain advisorChain) {
-		String conversationId = getConversationId(chatClientRequest.context(), this.defaultConversationId);
+		String conversationId = getConversationId(chatClientRequest.context());
 
 		// 1. Retrieve the chat memory for the current conversation.
 		List<Message> memoryMessages = this.chatMemory.get(conversationId);
@@ -84,6 +80,15 @@ public final class MessageChatMemoryAdvisor implements BaseChatMemoryAdvisor {
 		// 2. Advise the request messages list.
 		List<Message> processedMessages = new ArrayList<>(memoryMessages);
 		processedMessages.addAll(chatClientRequest.prompt().getInstructions());
+
+		// 2.1. Ensure system message, if present, appears first in the list.
+		for (int i = 0; i < processedMessages.size(); i++) {
+			if (processedMessages.get(i) instanceof SystemMessage) {
+				Message systemMessage = processedMessages.remove(i);
+				processedMessages.add(0, systemMessage);
+				break;
+			}
+		}
 
 		// 3. Create a new request with the advised messages.
 		ChatClientRequest processedChatClientRequest = chatClientRequest.mutate()
@@ -107,8 +112,7 @@ public final class MessageChatMemoryAdvisor implements BaseChatMemoryAdvisor {
 				.map(g -> (Message) g.getOutput())
 				.toList();
 		}
-		this.chatMemory.add(this.getConversationId(chatClientResponse.context(), this.defaultConversationId),
-				assistantMessages);
+		this.chatMemory.add(this.getConversationId(chatClientResponse.context()), assistantMessages);
 		return chatClientResponse;
 	}
 
@@ -133,8 +137,6 @@ public final class MessageChatMemoryAdvisor implements BaseChatMemoryAdvisor {
 
 	public static final class Builder {
 
-		private String conversationId = ChatMemory.DEFAULT_CONVERSATION_ID;
-
 		private int order = Advisor.DEFAULT_CHAT_MEMORY_PRECEDENCE_ORDER;
 
 		private Scheduler scheduler = BaseAdvisor.DEFAULT_SCHEDULER;
@@ -142,17 +144,8 @@ public final class MessageChatMemoryAdvisor implements BaseChatMemoryAdvisor {
 		private final ChatMemory chatMemory;
 
 		private Builder(ChatMemory chatMemory) {
+			Assert.notNull(chatMemory, "chatMemory cannot be null");
 			this.chatMemory = chatMemory;
-		}
-
-		/**
-		 * Set the conversation id.
-		 * @param conversationId the conversation id
-		 * @return the builder
-		 */
-		public Builder conversationId(String conversationId) {
-			this.conversationId = conversationId;
-			return this;
 		}
 
 		/**
@@ -175,7 +168,7 @@ public final class MessageChatMemoryAdvisor implements BaseChatMemoryAdvisor {
 		 * @return the advisor
 		 */
 		public MessageChatMemoryAdvisor build() {
-			return new MessageChatMemoryAdvisor(this.chatMemory, this.conversationId, this.order, this.scheduler);
+			return new MessageChatMemoryAdvisor(this.chatMemory, this.order, this.scheduler);
 		}
 
 	}

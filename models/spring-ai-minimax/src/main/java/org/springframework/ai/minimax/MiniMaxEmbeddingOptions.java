@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2024 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,10 +16,7 @@
 
 package org.springframework.ai.minimax;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonInclude.Include;
-import com.fasterxml.jackson.annotation.JsonProperty;
+import org.jspecify.annotations.Nullable;
 
 import org.springframework.ai.embedding.EmbeddingOptions;
 
@@ -30,14 +27,14 @@ import org.springframework.ai.embedding.EmbeddingOptions;
  * @author Thomas Vitale
  * @since 1.0.0 M1
  */
-@JsonInclude(Include.NON_NULL)
 public class MiniMaxEmbeddingOptions implements EmbeddingOptions {
 
 	// @formatter:off
 	/**
 	 * ID of the model to use.
 	 */
-	private @JsonProperty("model") String model;
+	@SuppressWarnings("NullAway.Init")
+	private String model;
 	// @formatter:on
 
 	public static Builder builder() {
@@ -54,8 +51,7 @@ public class MiniMaxEmbeddingOptions implements EmbeddingOptions {
 	}
 
 	@Override
-	@JsonIgnore
-	public Integer getDimensions() {
+	public @Nullable Integer getDimensions() {
 		return null;
 	}
 

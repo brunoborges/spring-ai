@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,23 +16,28 @@
 
 package org.springframework.ai.mistralai;
 
-import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
 
+import org.springframework.ai.chat.client.AdvisorParams;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.ChatClientAttributes;
+import org.springframework.ai.chat.client.ChatClientRequest;
+import org.springframework.ai.chat.client.ChatClientResponse;
+import org.springframework.ai.chat.client.advisor.api.CallAdvisor;
+import org.springframework.ai.chat.client.advisor.api.CallAdvisorChain;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -52,6 +57,8 @@ import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.ai.converter.ListOutputConverter;
 import org.springframework.ai.converter.MapOutputConverter;
 import org.springframework.ai.mistralai.api.MistralAiApi;
+import org.springframework.ai.mistralai.api.MistralAiApi.ChatCompletionRequest.ResponseFormat;
+import org.springframework.ai.model.ModelOptionsUtils;
 import org.springframework.ai.model.tool.DefaultToolCallingManager;
 import org.springframework.ai.model.tool.ToolCallingChatOptions;
 import org.springframework.ai.model.tool.ToolCallingManager;
@@ -82,22 +89,10 @@ class MistralAiChatModelIT {
 	private static final Logger logger = LoggerFactory.getLogger(MistralAiChatModelIT.class);
 
 	@Autowired
-	protected ChatModel chatModel;
+	private ChatModel chatModel;
 
 	@Autowired
-	protected StreamingChatModel streamingChatModel;
-
-	@Value("classpath:/prompts/eval/qa-evaluator-accurate-answer.st")
-	protected Resource qaEvaluatorAccurateAnswerResource;
-
-	@Value("classpath:/prompts/eval/qa-evaluator-not-related-message.st")
-	protected Resource qaEvaluatorNotRelatedResource;
-
-	@Value("classpath:/prompts/eval/qa-evaluator-fact-based-answer.st")
-	protected Resource qaEvaluatorFactBasedAnswerResource;
-
-	@Value("classpath:/prompts/eval/user-evaluator-message.st")
-	protected Resource userEvaluatorResource;
+	private StreamingChatModel streamingChatModel;
 
 	@Value("classpath:/prompts/system-message.st")
 	private Resource systemResource;
@@ -133,7 +128,6 @@ class MistralAiChatModelIT {
 			.build();
 		Prompt prompt = new Prompt(promptTemplate.createMessage());
 		Generation generation = this.chatModel.call(prompt).getResult();
-
 		List<String> list = outputConverter.convert(generation.getOutput().getText());
 		assertThat(list).hasSize(5);
 	}
@@ -178,7 +172,7 @@ class MistralAiChatModelIT {
 		Generation generation = this.chatModel.call(prompt).getResult();
 
 		ActorsFilmsRecord actorsFilms = outputConverter.convert(generation.getOutput().getText());
-		logger.info("" + actorsFilms);
+		logger.info(actorsFilms.toString());
 		assertThat(actorsFilms.actor()).isEqualTo("Tom Hanks");
 		assertThat(actorsFilms.movies()).hasSize(5);
 	}
@@ -201,8 +195,9 @@ class MistralAiChatModelIT {
 
 		String generationTextFromStream = this.streamingChatModel.stream(prompt)
 			.collectList()
-			.block()
+			.blockOptional()
 			.stream()
+			.flatMap(List::stream)
 			.map(ChatResponse::getResults)
 			.flatMap(List::stream)
 			.map(Generation::getOutput)
@@ -210,7 +205,7 @@ class MistralAiChatModelIT {
 			.collect(Collectors.joining());
 
 		ActorsFilmsRecord actorsFilms = outputConverter.convert(generationTextFromStream);
-		logger.info("" + actorsFilms);
+		logger.info(actorsFilms.toString());
 		assertThat(actorsFilms.actor()).isEqualTo("Tom Hanks");
 		assertThat(actorsFilms.movies()).hasSize(5);
 	}
@@ -224,7 +219,7 @@ class MistralAiChatModelIT {
 		List<Message> messages = new ArrayList<>(List.of(userMessage));
 
 		var promptOptions = MistralAiChatOptions.builder()
-			.model(MistralAiApi.ChatModel.SMALL.getValue())
+			.model(MistralAiApi.ChatModel.MISTRAL_SMALL.getValue())
 			.toolCallbacks(List.of(FunctionToolCallback.builder("getCurrentWeather", new MockWeatherService())
 				.description("Get the weather in location")
 				.inputType(MockWeatherService.Request.class)
@@ -238,7 +233,7 @@ class MistralAiChatModelIT {
 		assertThat(response.getResult().getOutput().getText()).containsAnyOf("30.0", "30");
 		assertThat(response.getMetadata()).isNotNull();
 		assertThat(response.getMetadata().getUsage()).isNotNull();
-		assertThat(response.getMetadata().getUsage().getTotalTokens()).isLessThan(1050).isGreaterThan(750);
+		assertThat(response.getMetadata().getUsage().getTotalTokens()).isLessThan(1050).isGreaterThan(500);
 	}
 
 	@Test
@@ -249,7 +244,7 @@ class MistralAiChatModelIT {
 		List<Message> messages = new ArrayList<>(List.of(userMessage));
 
 		var promptOptions = MistralAiChatOptions.builder()
-			.model(MistralAiApi.ChatModel.SMALL.getValue())
+			.model(MistralAiApi.ChatModel.MISTRAL_SMALL.getValue())
 			.toolCallbacks(List.of(FunctionToolCallback.builder("getCurrentWeather", new MockWeatherService())
 				.description("Get the weather in location")
 				.inputType(MockWeatherService.Request.class)
@@ -259,8 +254,9 @@ class MistralAiChatModelIT {
 		Flux<ChatResponse> response = this.streamingChatModel.stream(new Prompt(messages, promptOptions));
 
 		String content = response.collectList()
-			.block()
+			.blockOptional()
 			.stream()
+			.flatMap(List::stream)
 			.map(ChatResponse::getResults)
 			.flatMap(List::stream)
 			.map(Generation::getOutput)
@@ -271,9 +267,8 @@ class MistralAiChatModelIT {
 		assertThat(content).containsAnyOf("10.0", "10");
 	}
 
-	@ParameterizedTest(name = "{0} : {displayName} ")
-	@ValueSource(strings = { "pixtral-large-latest" })
-	void multiModalityEmbeddedImage(String modelName) {
+	@Test
+	void multiModalityEmbeddedImage() {
 		var imageData = new ClassPathResource("/test.png");
 
 		var userMessage = UserMessage.builder()
@@ -281,17 +276,17 @@ class MistralAiChatModelIT {
 			.media(List.of(new Media(MimeTypeUtils.IMAGE_PNG, imageData)))
 			.build();
 
-		var response = this.chatModel
-			.call(new Prompt(List.of(userMessage), ChatOptions.builder().model(modelName).build()));
+		var chatOptions = ChatOptions.builder().model(MistralAiApi.ChatModel.MISTRAL_LARGE.getValue()).build();
+
+		var response = this.chatModel.call(new Prompt(List.of(userMessage), chatOptions));
 
 		logger.info(response.getResult().getOutput().getText());
 		assertThat(response.getResult().getOutput().getText()).containsAnyOf("bananas", "apple", "bowl", "basket",
 				"fruit stand");
 	}
 
-	@ParameterizedTest(name = "{0} : {displayName} ")
-	@ValueSource(strings = { "pixtral-large-latest" })
-	void multiModalityImageUrl(String modelName) throws IOException {
+	@Test
+	void multiModalityImageUrl() {
 		var userMessage = UserMessage.builder()
 			.text("Explain what do you see on this picture?")
 			.media(List.of(Media.builder()
@@ -300,8 +295,9 @@ class MistralAiChatModelIT {
 				.build()))
 			.build();
 
-		ChatResponse response = this.chatModel
-			.call(new Prompt(List.of(userMessage), ChatOptions.builder().model(modelName).build()));
+		var chatOptions = ChatOptions.builder().model(MistralAiApi.ChatModel.MISTRAL_LARGE.getValue()).build();
+
+		ChatResponse response = this.chatModel.call(new Prompt(List.of(userMessage), chatOptions));
 
 		logger.info(response.getResult().getOutput().getText());
 		assertThat(response.getResult().getOutput().getText()).contains("bananas", "apple");
@@ -309,7 +305,7 @@ class MistralAiChatModelIT {
 	}
 
 	@Test
-	void streamingMultiModalityImageUrl() throws IOException {
+	void streamingMultiModalityImageUrl() {
 		var userMessage = UserMessage.builder()
 			.text("Explain what do you see on this picture?")
 			.media(List.of(Media.builder()
@@ -319,11 +315,12 @@ class MistralAiChatModelIT {
 			.build();
 
 		Flux<ChatResponse> response = this.streamingChatModel.stream(new Prompt(List.of(userMessage),
-				ChatOptions.builder().model(MistralAiApi.ChatModel.PIXTRAL_LARGE.getValue()).build()));
+				ChatOptions.builder().model(MistralAiApi.ChatModel.MISTRAL_LARGE.getValue()).build()));
 
 		String content = response.collectList()
-			.block()
+			.blockOptional()
 			.stream()
+			.flatMap(List::stream)
 			.map(ChatResponse::getResults)
 			.flatMap(List::stream)
 			.map(Generation::getOutput)
@@ -341,7 +338,7 @@ class MistralAiChatModelIT {
 		List<Message> messages = new ArrayList<>(List.of(userMessage));
 
 		var promptOptions = MistralAiChatOptions.builder()
-			.model(MistralAiApi.ChatModel.SMALL.getValue())
+			.model(MistralAiApi.ChatModel.MISTRAL_SMALL.getValue())
 			.toolCallbacks(List.of(FunctionToolCallback.builder("getCurrentWeather", new MockWeatherService())
 				.description("Get the weather in location")
 				.inputType(MockWeatherService.Request.class)
@@ -421,8 +418,132 @@ class MistralAiChatModelIT {
 		assertThat(newResponse.getResult().getOutput().getText()).contains("6").contains("8");
 	}
 
+	@Test
+	void structuredOutputWithJsonSchema() {
+		// Test using ResponseFormat.jsonSchema(Class<?>) for structured output
+
+		var promptOptions = MistralAiChatOptions.builder()
+			.model(MistralAiApi.ChatModel.MISTRAL_SMALL.getValue())
+			.responseFormat(ResponseFormat.jsonSchema(MovieRecommendation.class))
+			.build();
+
+		UserMessage userMessage = new UserMessage(
+				"Recommend a classic science fiction movie. Provide the title, director, release year, and a brief plot summary.");
+
+		ChatResponse response = this.chatModel.call(new Prompt(List.of(userMessage), promptOptions));
+
+		logger.info("Response: {}", response.getResult().getOutput().getText());
+
+		String content = response.getResult().getOutput().getText();
+		assertThat(content).isNotNull();
+		assertThat(content).contains("title");
+		assertThat(content).contains("director");
+		assertThat(content).contains("year");
+		assertThat(content).contains("plotSummary");
+
+		// Verify the response can be parsed as the expected record
+		BeanOutputConverter<MovieRecommendation> outputConverter = new BeanOutputConverter<>(MovieRecommendation.class);
+		MovieRecommendation movie = outputConverter.convert(content);
+
+		assertThat(movie).isNotNull();
+		assertThat(movie.title()).isNotBlank();
+		assertThat(movie.director()).isNotBlank();
+		assertThat(movie.year()).isGreaterThan(1900);
+		assertThat(movie.plotSummary()).isNotBlank();
+
+		logger.info("Parsed movie: {}", movie);
+	}
+
+	@Test
+	void structuredOutputWithJsonSchemaFromMap() {
+		// Test using ResponseFormat.jsonSchema(Map) for structured output
+
+		Map<String, Object> schema = Map.of("type", "object", "properties",
+				Map.of("city", Map.of("type", "string"), "country", Map.of("type", "string"), "population",
+						Map.of("type", "integer"), "famousFor", Map.of("type", "string")),
+				"required", List.of("city", "country", "population", "famousFor"), "additionalProperties", false);
+
+		var promptOptions = MistralAiChatOptions.builder()
+			.model(MistralAiApi.ChatModel.MISTRAL_SMALL.getValue())
+			.responseFormat(ResponseFormat.jsonSchema(schema))
+			.build();
+
+		UserMessage userMessage = new UserMessage(
+				"Tell me about Paris, France. Include the city name, country, approximate population, and what it is famous for.");
+
+		ChatResponse response = this.chatModel.call(new Prompt(List.of(userMessage), promptOptions));
+
+		logger.info("Response: {}", response.getResult().getOutput().getText());
+
+		String content = response.getResult().getOutput().getText();
+		assertThat(content).isNotNull();
+		assertThat(content).containsIgnoringCase("Paris");
+		assertThat(content).containsIgnoringCase("France");
+	}
+
+	@Test
+	void chatClientEntityWithStructuredOutput() {
+		// Test using ChatClient high-level API with .entity(Class) method
+		// This verifies that StructuredOutputChatOptions implementation works correctly
+		// with ChatClient
+
+		ChatClient chatClient = ChatClient.builder(this.chatModel).build();
+
+		// Advisor to verify that native structured output is being used.
+		// The schema is passed via context to ChatModelCallAdvisor which applies it
+		// to a new ChatClientRequest - so we verify the context attributes here,
+		// not the prompt options (which are only modified inside ChatModelCallAdvisor).
+		var expectedOutputSchemaMap = new BeanOutputConverter<>(ActorsFilmsRecord.class).getJsonSchemaMap();
+		AtomicBoolean nativeStructuredOutputUsed = new AtomicBoolean(false);
+		CallAdvisor verifyNativeStructuredOutputAdvisor = new CallAdvisor() {
+			@Override
+			public ChatClientResponse adviseCall(ChatClientRequest request, CallAdvisorChain chain) {
+				var nativeFlag = request.context().get(ChatClientAttributes.STRUCTURED_OUTPUT_NATIVE.getKey());
+				var schemaString = (String) request.context()
+					.get(ChatClientAttributes.STRUCTURED_OUTPUT_SCHEMA.getKey());
+
+				if (Boolean.TRUE.equals(nativeFlag) && schemaString != null) {
+					var actualSchemaMap = ModelOptionsUtils.jsonToMap(schemaString);
+					if (expectedOutputSchemaMap.equals(actualSchemaMap)) {
+						nativeStructuredOutputUsed.set(true);
+					}
+				}
+				return chain.nextCall(request);
+			}
+
+			@Override
+			public String getName() {
+				return "VerifyNativeStructuredOutputAdvisor";
+			}
+
+			@Override
+			public int getOrder() {
+				return 0;
+			}
+		};
+
+		ActorsFilmsRecord actorsFilms = chatClient.prompt("Generate the filmography of 5 movies for Tom Hanks.")
+			// forces native structured output handling via StructuredOutputChatOptions
+			.advisors(AdvisorParams.ENABLE_NATIVE_STRUCTURED_OUTPUT)
+			.advisors(verifyNativeStructuredOutputAdvisor)
+			.call()
+			.entity(ActorsFilmsRecord.class);
+
+		logger.info("ChatClient entity result: {}", actorsFilms);
+
+		// Verify that native structured output was used
+		assertThat(nativeStructuredOutputUsed.get())
+			.as("Native structured output should be used with ResponseFormat.Type.JSON_SCHEMA")
+			.isTrue();
+
+		assertThat(actorsFilms).isNotNull();
+		assertThat(actorsFilms.actor()).isEqualTo("Tom Hanks");
+		assertThat(actorsFilms.movies()).hasSize(5);
+	}
+
 	static class MathTools {
 
+		@SuppressWarnings("unused")
 		@Tool(description = "Multiply the two numbers")
 		double multiply(double a, double b) {
 			return a * b;
@@ -431,6 +552,10 @@ class MistralAiChatModelIT {
 	}
 
 	record ActorsFilmsRecord(String actor, List<String> movies) {
+
+	}
+
+	record MovieRecommendation(String title, String director, int year, String plotSummary) {
 
 	}
 

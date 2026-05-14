@@ -1,5 +1,5 @@
 /*
- * Copyright 2025-2025 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,9 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Test;
 
+import org.springframework.ai.minimax.MiniMaxChatOptions.Builder;
 import org.springframework.ai.minimax.api.MiniMaxApi;
+import org.springframework.ai.test.options.AbstractChatOptionsTests;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -32,7 +34,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  *
  * @author Alexandros Pappas
  */
-class MiniMaxChatOptionsTests {
+class MiniMaxChatOptionsTests extends AbstractChatOptionsTests<MiniMaxChatOptions, Builder> {
+
+	@Override
+	protected Class<MiniMaxChatOptions> getConcreteOptionsClass() {
+		return MiniMaxChatOptions.class;
+	}
+
+	@Override
+	protected Builder readyToBuildBuilder() {
+		return MiniMaxChatOptions.builder();
+	}
 
 	@Test
 	void testBuilderWithAllFields() {
@@ -98,22 +110,22 @@ class MiniMaxChatOptionsTests {
 
 	@Test
 	void testSettersWithNulls() {
-		MiniMaxChatOptions options = new MiniMaxChatOptions();
-		options.setModel(null);
-		options.setFrequencyPenalty(null);
-		options.setMaxTokens(null);
-		options.setN(null);
-		options.setPresencePenalty(null);
-		options.setResponseFormat(null);
-		options.setSeed(null);
-		options.setStop(null);
-		options.setTemperature(null);
-		options.setTopP(null);
-		options.setMaskSensitiveInfo(null);
-		options.setTools(null);
-		options.setToolChoice(null);
-		options.setInternalToolExecutionEnabled(null);
-		options.setToolContext(null);
+		MiniMaxChatOptions options = MiniMaxChatOptions.builder()
+			.model(null)
+			.frequencyPenalty(null)
+			.maxTokens(null)
+			.N(null)
+			.presencePenalty(null)
+			.responseFormat(null)
+			.seed(null)
+			.stopSequences(null)
+			.temperature(null)
+			.topP(null)
+			.maskSensitiveInfo(null)
+			.tools(null)
+			.toolChoice(null)
+			.internalToolExecutionEnabled(null)
+			.build();
 
 		assertThat(options.getModel()).isNull();
 		assertThat(options.getFrequencyPenalty()).isNull();
@@ -129,7 +141,6 @@ class MiniMaxChatOptionsTests {
 		assertThat(options.getTools()).isNull();
 		assertThat(options.getToolChoice()).isNull();
 		assertThat(options.getInternalToolExecutionEnabled()).isNull();
-		assertThat(options.getToolContext()).isNull();
 	}
 
 	@Test
@@ -155,21 +166,22 @@ class MiniMaxChatOptionsTests {
 
 	@Test
 	void testSetters() {
-		MiniMaxChatOptions options = new MiniMaxChatOptions();
-		options.setModel("test-model");
-		options.setFrequencyPenalty(0.5);
-		options.setMaxTokens(10);
-		options.setN(1);
-		options.setPresencePenalty(0.5);
-		options.setResponseFormat(new MiniMaxApi.ChatCompletionRequest.ResponseFormat("text"));
-		options.setSeed(1);
-		options.setStop(List.of("test"));
-		options.setTemperature(0.6);
-		options.setTopP(0.6);
-		options.setMaskSensitiveInfo(false);
-		options.setToolChoice("test");
-		options.setInternalToolExecutionEnabled(true);
-		options.setToolContext(Map.of("key1", "value1"));
+		MiniMaxChatOptions options = MiniMaxChatOptions.builder()
+			.model("test-model")
+			.frequencyPenalty(0.5)
+			.maxTokens(10)
+			.N(1)
+			.presencePenalty(0.5)
+			.responseFormat(new MiniMaxApi.ChatCompletionRequest.ResponseFormat("text"))
+			.seed(1)
+			.stopSequences(List.of("test"))
+			.temperature(0.6)
+			.topP(0.6)
+			.maskSensitiveInfo(false)
+			.toolChoice("test")
+			.internalToolExecutionEnabled(true)
+			.toolContext(Map.of("key1", "value1"))
+			.build();
 
 		assertThat(options.getModel()).isEqualTo("test-model");
 		assertThat(options.getFrequencyPenalty()).isEqualTo(0.5);

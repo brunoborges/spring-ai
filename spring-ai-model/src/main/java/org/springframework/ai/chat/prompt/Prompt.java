@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -137,6 +137,20 @@ public class Prompt implements ModelRequest<List<Message>> {
 			}
 		}
 		return new UserMessage("");
+	}
+
+	/**
+	 * Get all system messages in the prompt.
+	 * @return a list of all system messages in the prompt
+	 */
+	public List<SystemMessage> getSystemMessages() {
+		List<SystemMessage> systemMessages = new ArrayList<>();
+		for (Message message : this.messages) {
+			if (message instanceof SystemMessage systemMessage) {
+				systemMessages.add(systemMessage);
+			}
+		}
+		return systemMessages;
 	}
 
 	/**

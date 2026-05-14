@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,6 +29,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import redis.clients.jedis.JedisPooled;
@@ -60,7 +61,6 @@ import org.springframework.ai.vectorstore.filter.FilterExpressionConverter;
 import org.springframework.ai.vectorstore.observation.AbstractObservationVectorStore;
 import org.springframework.ai.vectorstore.observation.VectorStoreObservationContext;
 import org.springframework.beans.factory.InitializingBean;
-import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -236,6 +236,7 @@ import org.springframework.util.StringUtils;
  * @author Thomas Vitale
  * @author Soby Chacko
  * @author Jihoon Kim
+ * @author chabinhwang
  * @see VectorStore
  * @see EmbeddingModel
  * @since 1.0.0
@@ -304,7 +305,7 @@ public class RedisVectorStore extends AbstractObservationVectorStore implements 
 	private final Integer hnswEfRuntime;
 
 	// Default range threshold for range searches (0.0 to 1.0)
-	private final Double defaultRangeThreshold;
+	private final @Nullable Double defaultRangeThreshold;
 
 	// Text search configuration
 	private final TextScorer textScorer;
@@ -357,9 +358,10 @@ public class RedisVectorStore extends AbstractObservationVectorStore implements 
 			List<float[]> embeddings = this.embeddingModel.embed(documents, EmbeddingOptions.builder().build(),
 					this.batchingStrategy);
 
-			for (Document document : documents) {
+			for (int i = 0; i < documents.size(); i++) {
+				Document document = documents.get(i);
 				var fields = new HashMap<String, Object>();
-				float[] embedding = embeddings.get(documents.indexOf(document));
+				float[] embedding = embeddings.get(i);
 
 				// Normalize embeddings for COSINE distance metric
 				if (this.distanceMetric == DistanceMetric.COSINE) {
@@ -1140,7 +1142,7 @@ public class RedisVectorStore extends AbstractObservationVectorStore implements 
 
 		// Process the results and ensure they match the specified similarity threshold
 		List<Document> documents = result.getDocuments().stream().map(this::toDocument).filter(doc -> {
-			boolean isAboveThreshold = doc.getScore() >= radius;
+			boolean isAboveThreshold = doc.getScore() != null && doc.getScore() >= radius;
 			if (logger.isDebugEnabled()) {
 				logger.debug("Document score: {}, raw distance: {}, above_threshold: {}", doc.getScore(),
 						doc.getMetadata().getOrDefault(DISTANCE_FIELD_NAME, "N/A"), isAboveThreshold);
@@ -1319,7 +1321,7 @@ public class RedisVectorStore extends AbstractObservationVectorStore implements 
 
 		private Integer hnswEfRuntime = 10;
 
-		private Double defaultRangeThreshold;
+		private @Nullable Double defaultRangeThreshold;
 
 		// Text search configuration
 		private TextScorer textScorer = DEFAULT_TEXT_SCORER;

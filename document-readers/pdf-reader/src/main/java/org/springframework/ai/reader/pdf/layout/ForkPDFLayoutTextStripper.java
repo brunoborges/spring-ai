@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2024 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.apache.pdfbox.text.TextPosition;
 import org.apache.pdfbox.text.TextPositionComparator;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,13 +42,11 @@ public class ForkPDFLayoutTextStripper extends PDFTextStripper {
 
 	private final static Logger logger = LoggerFactory.getLogger(ForkPDFLayoutTextStripper.class);
 
-	public static final boolean DEBUG = false;
-
 	public static final int OUTPUT_SPACE_CHARACTER_WIDTH_IN_PT = 4;
 
 	private double currentPageWidth;
 
-	private TextPosition previousTextPosition;
+	private @Nullable TextPosition previousTextPosition;
 
 	private List<TextLine> textLineList;
 
@@ -136,6 +135,11 @@ public class ForkPDFLayoutTextStripper extends PDFTextStripper {
 			}
 			else {
 				this.writeTextPositionList(textPositionList);
+				if (numberOfNewLines > 10_000) {
+					// Throw rather than allocate crazy number of line objects
+					throw new IllegalStateException("Unreasonable number of lines (%d) computed from content of pdf"
+						.formatted(numberOfNewLines));
+				}
 				this.createNewEmptyNewLines(numberOfNewLines);
 				textPositionList.add(textPosition);
 			}
@@ -170,9 +174,6 @@ public class ForkPDFLayoutTextStripper extends PDFTextStripper {
 			double height = textPosition.getHeight();
 			int numberOfLines = (int) (Math.floor(textYPosition - previousTextYPosition) / height);
 			numberOfLines = Math.max(1, numberOfLines - 1); // exclude current new line
-			if (DEBUG) {
-				System.out.println(height + " " + numberOfLines);
-			}
 			return numberOfLines;
 		}
 		else {
@@ -186,7 +187,7 @@ public class ForkPDFLayoutTextStripper extends PDFTextStripper {
 		return textLine;
 	}
 
-	private TextPosition getPreviousTextPosition() {
+	private @Nullable TextPosition getPreviousTextPosition() {
 		return this.previousTextPosition;
 	}
 

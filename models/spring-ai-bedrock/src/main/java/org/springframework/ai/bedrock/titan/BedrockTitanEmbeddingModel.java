@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2024 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import io.micrometer.observation.Observation;
 import io.micrometer.observation.ObservationRegistry;
+import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -79,7 +80,9 @@ public class BedrockTitanEmbeddingModel extends AbstractEmbeddingModel {
 
 	@Override
 	public float[] embed(Document document) {
-		return embed(document.getText());
+		String text = document.getText();
+		Assert.state(text != null, "Document text must not be null");
+		return embed(text);
 	}
 
 	@Override
@@ -133,11 +136,11 @@ public class BedrockTitanEmbeddingModel extends AbstractEmbeddingModel {
 		return new EmbeddingResponse(embeddings, embeddingResponseMetadata);
 	}
 
-	private TitanEmbeddingRequest createTitanEmbeddingRequest(String inputContent, EmbeddingOptions requestOptions) {
+	private TitanEmbeddingRequest createTitanEmbeddingRequest(String inputContent,
+			@Nullable EmbeddingOptions requestOptions) {
 		InputType inputType = this.inputType;
 
-		if (requestOptions != null
-				&& requestOptions instanceof BedrockTitanEmbeddingOptions bedrockTitanEmbeddingOptions) {
+		if (requestOptions instanceof BedrockTitanEmbeddingOptions bedrockTitanEmbeddingOptions) {
 			inputType = bedrockTitanEmbeddingOptions.getInputType();
 		}
 

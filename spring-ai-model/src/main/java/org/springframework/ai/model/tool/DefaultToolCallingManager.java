@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,6 +22,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import io.micrometer.observation.ObservationRegistry;
 import org.slf4j.Logger;
@@ -53,6 +55,7 @@ import org.springframework.util.StringUtils;
  * Default implementation of {@link ToolCallingManager}.
  *
  * @author Thomas Vitale
+ * @author chabinhwang
  * @since 1.0.0
  */
 public final class DefaultToolCallingManager implements ToolCallingManager {
@@ -103,13 +106,16 @@ public final class DefaultToolCallingManager implements ToolCallingManager {
 		Assert.notNull(chatOptions, "chatOptions cannot be null");
 
 		List<ToolCallback> toolCallbacks = new ArrayList<>(chatOptions.getToolCallbacks());
+		Set<String> existingToolNames = chatOptions.getToolCallbacks()
+			.stream()
+			.map(tool -> tool.getToolDefinition().name())
+			.collect(Collectors.toSet());
+
 		for (String toolName : chatOptions.getToolNames()) {
 			// Skip the tool if it is already present in the request toolCallbacks.
 			// That might happen if a tool is defined in the options
 			// both as a ToolCallback and as a tool name.
-			if (chatOptions.getToolCallbacks()
-				.stream()
-				.anyMatch(tool -> tool.getToolDefinition().name().equals(toolName))) {
+			if (existingToolNames.contains(toolName)) {
 				continue;
 			}
 			ToolCallback toolCallback = this.toolCallbackResolver.resolve(toolName);
@@ -159,23 +165,9 @@ public final class DefaultToolCallingManager implements ToolCallingManager {
 		if (prompt.getOptions() instanceof ToolCallingChatOptions toolCallingChatOptions
 				&& !CollectionUtils.isEmpty(toolCallingChatOptions.getToolContext())) {
 			toolContextMap = new HashMap<>(toolCallingChatOptions.getToolContext());
-
-			toolContextMap.put(ToolContext.TOOL_CALL_HISTORY,
-					buildConversationHistoryBeforeToolExecution(prompt, assistantMessage));
 		}
 
 		return new ToolContext(toolContextMap);
-	}
-
-	private static List<Message> buildConversationHistoryBeforeToolExecution(Prompt prompt,
-			AssistantMessage assistantMessage) {
-		List<Message> messageHistory = new ArrayList<>(prompt.copy().getInstructions());
-		messageHistory.add(AssistantMessage.builder()
-			.content(Objects.requireNonNullElse(assistantMessage.getText(), ""))
-			.properties(assistantMessage.getMetadata())
-			.toolCalls(assistantMessage.getToolCalls())
-			.build());
-		return messageHistory;
 	}
 
 	/**
@@ -230,6 +222,8 @@ public final class DefaultToolCallingManager implements ToolCallingManager {
 			ToolCallingObservationContext observationContext = ToolCallingObservationContext.builder()
 				.toolDefinition(toolCallback.getToolDefinition())
 				.toolMetadata(toolCallback.getToolMetadata())
+				.toolCallId(toolCall.id())
+				.toolType(toolCall.type())
 				.toolCallArguments(finalToolInputArguments)
 				.build();
 

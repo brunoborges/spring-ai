@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,16 +18,18 @@ package org.springframework.ai.vectorstore.qdrant;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.IntStream;
 
 import io.qdrant.client.QdrantClient;
 import io.qdrant.client.grpc.Collections.Distance;
 import io.qdrant.client.grpc.Collections.VectorParams;
+import io.qdrant.client.grpc.Common.Filter;
+import io.qdrant.client.grpc.Common.PointId;
 import io.qdrant.client.grpc.JsonWithInt.Value;
-import io.qdrant.client.grpc.Points.Filter;
-import io.qdrant.client.grpc.Points.PointId;
 import io.qdrant.client.grpc.Points.PointStruct;
 import io.qdrant.client.grpc.Points.ScoredPoint;
 import io.qdrant.client.grpc.Points.SearchPoints;
@@ -121,6 +123,7 @@ import org.springframework.util.Assert;
  * @author Josh Long
  * @author Soby Chacko
  * @author Thomas Vitale
+ * @author chabinhwang
  * @since 1.0.0
  */
 public class QdrantVectorStore extends AbstractObservationVectorStore implements InitializingBean {
@@ -129,11 +132,13 @@ public class QdrantVectorStore extends AbstractObservationVectorStore implements
 
 	public static final String DEFAULT_COLLECTION_NAME = "vector_store";
 
-	private static final String CONTENT_FIELD_NAME = "doc_content";
+	public static final String DEFAULT_CONTENT_FIELD_NAME = "doc_content";
 
 	private final QdrantClient qdrantClient;
 
 	private final String collectionName;
+
+	private final String contentFieldName;
 
 	private final QdrantFilterExpressionConverter filterExpressionConverter = new QdrantFilterExpressionConverter();
 
@@ -155,6 +160,7 @@ public class QdrantVectorStore extends AbstractObservationVectorStore implements
 		this.qdrantClient = builder.qdrantClient;
 		this.collectionName = builder.collectionName;
 		this.initializeSchema = builder.initializeSchema;
+		this.contentFieldName = builder.contentFieldName;
 	}
 
 	/**
@@ -179,13 +185,14 @@ public class QdrantVectorStore extends AbstractObservationVectorStore implements
 			List<float[]> embeddings = this.embeddingModel.embed(documents, EmbeddingOptions.builder().build(),
 					this.batchingStrategy);
 
-			List<PointStruct> points = documents.stream()
-				.map(document -> PointStruct.newBuilder()
+			List<PointStruct> points = IntStream.range(0, documents.size()).mapToObj(i -> {
+				Document document = documents.get(i);
+				return PointStruct.newBuilder()
 					.setId(io.qdrant.client.PointIdFactory.id(UUID.fromString(document.getId())))
-					.setVectors(io.qdrant.client.VectorsFactory.vectors(embeddings.get(documents.indexOf(document))))
+					.setVectors(io.qdrant.client.VectorsFactory.vectors(embeddings.get(i)))
 					.putAllPayload(toPayload(document))
-					.build())
-				.toList();
+					.build();
+			}).toList();
 
 			this.qdrantClient.upsertAsync(this.collectionName, points).get();
 		}
@@ -280,7 +287,7 @@ public class QdrantVectorStore extends AbstractObservationVectorStore implements
 			var metadata = QdrantObjectFactory.toObjectMap(point.getPayloadMap());
 			metadata.put(DocumentMetadata.DISTANCE.value(), 1 - point.getScore());
 
-			var content = (String) metadata.remove(CONTENT_FIELD_NAME);
+			var content = (String) metadata.remove(this.contentFieldName);
 
 			return Document.builder().id(id).text(content).metadata(metadata).score((double) point.getScore()).build();
 		}
@@ -297,7 +304,8 @@ public class QdrantVectorStore extends AbstractObservationVectorStore implements
 	private Map<String, Value> toPayload(Document document) {
 		try {
 			var payload = QdrantValueFactory.toValueMap(document.getMetadata());
-			payload.put(CONTENT_FIELD_NAME, io.qdrant.client.ValueFactory.value(document.getText()));
+			payload.put(this.contentFieldName,
+					io.qdrant.client.ValueFactory.value(Objects.requireNonNullElse(document.getText(), "")));
 			return payload;
 		}
 		catch (Exception e) {
@@ -359,6 +367,8 @@ public class QdrantVectorStore extends AbstractObservationVectorStore implements
 
 		private String collectionName = DEFAULT_COLLECTION_NAME;
 
+		private String contentFieldName = DEFAULT_CONTENT_FIELD_NAME;
+
 		private boolean initializeSchema = false;
 
 		/**
@@ -383,6 +393,19 @@ public class QdrantVectorStore extends AbstractObservationVectorStore implements
 		public Builder collectionName(String collectionName) {
 			Assert.hasText(collectionName, "collectionName must not be empty");
 			this.collectionName = collectionName;
+			return this;
+		}
+
+		/**
+		 * Configures the Qdrant content field name.
+		 * @param contentFieldName the name of the content field to use (defaults to
+		 * {@value DEFAULT_CONTENT_FIELD_NAME})
+		 * @return this builder instance
+		 * @throws IllegalArgumentException if contentFieldName is null or empty
+		 */
+		public Builder contentFieldName(String contentFieldName) {
+			Assert.hasText(contentFieldName, "contentFieldName must not be empty");
+			this.contentFieldName = contentFieldName;
 			return this;
 		}
 

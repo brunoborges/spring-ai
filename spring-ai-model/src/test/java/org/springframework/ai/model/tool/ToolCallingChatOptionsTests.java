@@ -1,5 +1,5 @@
 /*
- * Copyright 2023-2025 the original author or authors.
+ * Copyright 2023-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,15 +38,13 @@ class ToolCallingChatOptionsTests {
 
 	@Test
 	void whenToolCallingChatOptionsAndExecutionEnabledTrue() {
-		ToolCallingChatOptions options = new DefaultToolCallingChatOptions();
-		options.setInternalToolExecutionEnabled(true);
+		ToolCallingChatOptions options = ToolCallingChatOptions.builder().internalToolExecutionEnabled(true).build();
 		assertThat(ToolCallingChatOptions.isInternalToolExecutionEnabled(options)).isTrue();
 	}
 
 	@Test
 	void whenToolCallingChatOptionsAndExecutionEnabledFalse() {
-		ToolCallingChatOptions options = new DefaultToolCallingChatOptions();
-		options.setInternalToolExecutionEnabled(false);
+		ToolCallingChatOptions options = ToolCallingChatOptions.builder().internalToolExecutionEnabled(false).build();
 		assertThat(ToolCallingChatOptions.isInternalToolExecutionEnabled(options)).isFalse();
 	}
 
